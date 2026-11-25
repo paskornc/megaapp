@@ -197,6 +197,9 @@ textarea.copybox{min-height:120px}
 .early{border:1px dashed var(--line);border-radius:12px;padding:0 14px;background:var(--bg)}
 .early>summary{cursor:pointer;font-weight:600;font-size:14px;min-height:46px;display:flex;align-items:center}
 .early[open]>summary{border-bottom:1px solid var(--line);margin-bottom:14px}
+details.keys{margin:0 16px 12px;font-size:12.5px;color:var(--muted)}
+details.keys>summary{cursor:pointer}
+details.keys>summary .hint{margin-left:6px}
 .early .form{margin-bottom:12px}
 .early>p,.early>button{margin:0 0 14px}
 .etag{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin:0}
@@ -1165,7 +1168,9 @@ function iView(){
    <label class="hint" style="display:flex;align-items:center;gap:6px;margin-left:auto">USD/THB<input id="i_fx" type="number" step="any" inputmode="decimal" value="${esc(ifx())}" style="width:84px;padding:4px 8px"></label></div>
   <div class="tools" style="padding:0 16px 12px"><button class="btn primary" data-act="i-refresh"${ivBusy?" disabled":""}>${ivBusy==="r"?"กำลังดึงราคา…":"รีเฟรชราคา"}</button>
    ${sampleFn?`<label class="btn" for="i_shot">นำเข้าจากภาพหน้าจอพอร์ต</label><input type="file" id="i_shot" accept="image/*" hidden>`:""}<label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="i_auto" style="width:auto"${invset.auto===false?"":" checked"}>อัปเดตอัตโนมัติทุก 1 นาที (ขณะเปิดหน้านี้)</label><span class="hint" id="i_stat"></span></div>
-  <div class="tools" style="padding:0 16px 12px;flex-wrap:wrap"><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Finnhub (ฟรี)<input id="i_fh" type="password" autocomplete="off" spellcheck="false" placeholder="วางคีย์ที่นี่" value="${esc(invset.fh||"")}" style="width:150px;padding:4px 8px"></label><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Twelve Data<input id="i_td" type="password" autocomplete="off" spellcheck="false" placeholder="ไม่บังคับ" value="${esc(invset.td||"")}" style="width:150px;padding:4px 8px"></label><span class="hint">${fhKey()?"Finnhub พร้อมใช้ — ราคาหุ้นสหรัฐอัปเดตอัตโนมัติ":tdKey()?"Twelve Data พร้อมใช้":"ยังไม่ใส่คีย์ → หุ้นสหรัฐดึงราคาไม่ได้"}</span></div>${iDiagHtml()}
+  <details class="keys"${fhKey()||tdKey()?"":" open"}><summary>ตั้งค่าคีย์ API ราคาหุ้นสหรัฐ <span class="hint">${fhKey()?"Finnhub พร้อมใช้":tdKey()?"Twelve Data พร้อมใช้":"ยังไม่ใส่คีย์"}</span></summary>
+   <div class="tools" style="padding:8px 0 0;flex-wrap:wrap"><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Finnhub (ฟรี)<input id="i_fh" type="password" autocomplete="off" spellcheck="false" placeholder="วางคีย์ที่นี่" value="${esc(invset.fh||"")}" style="width:150px;padding:4px 8px"></label><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Twelve Data<input id="i_td" type="password" autocomplete="off" spellcheck="false" placeholder="ไม่บังคับ" value="${esc(invset.td||"")}" style="width:150px;padding:4px 8px"></label></div>
+   <div class="hint" style="padding:4px 0 0">${fhKey()?"Finnhub: อัปเดตราคาหุ้นสหรัฐอัตโนมัติทุก 1 นาที ขณะเปิดหน้านี้":tdKey()?"Twelve Data: อัปเดตอัตโนมัติ (8 คำขอ/นาที)":"ใส่คีย์เพื่อให้หุ้นสหรัฐอัปเดตราคาเอง — สมัครฟรีที่ finnhub.io/register"}</div></details>${iDiagHtml()}
   <div class="tw"><table style="min-width:620px"><thead><tr><th>สินทรัพย์</th><th class="num">จำนวน</th><th class="num">ต้นทุน/หน่วย</th><th class="num">ราคาล่าสุด</th><th class="num">มูลค่า</th><th class="num">กำไร/ขาดทุน (฿)</th></tr></thead>
   <tbody>${rows||`<tr><td colspan="6" class="empty">ยังไม่มีสินทรัพย์ กดปุ่ม “เพิ่มสินทรัพย์” มุมขวาล่าง</td></tr>`}</tbody></table></div>
   <div class="alert-row"><span class="hint" style="flex:1 1 260px">หุ้นสหรัฐและคริปโตคิดเป็นดอลลาร์ แปลงเป็นบาทด้วยอัตรา USD/THB ด้านบน หุ้นไทยคิดเป็นบาท ถ้ารีเฟรชราคาไม่ได้ ให้กรอกราคาเอง (แตะแถวเพื่อแก้) หรือบอก Claude ในแชตให้อัปเดตราคาให้</span></div></section>`;
