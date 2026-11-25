@@ -678,7 +678,7 @@ function render(){
   if(!loaded){$("#guide").hidden=true;main.innerHTML=`<div class="empty">กำลังโหลดข้อมูล…</div>`;return}
   renderGuide();
   syMaybeAuto();
-  syStatRender();
+  setTimeout(syStatRender,0);
   if(area==="inv"){main.innerHTML=iView();return}
   if(area==="cash"){
     main.innerHTML=ctab==="day"?cViewDay():ctab==="rep"?cViewRep():ctab==="wal"?cViewWal():cViewCat();
