@@ -201,16 +201,22 @@ details.keys{margin:0 16px 12px;font-size:12.5px;color:var(--muted)}
 details.keys>summary{cursor:pointer}
 details.keys>summary .hint{margin-left:6px}
 .guide{display:flex;flex-direction:column;gap:6px;margin:12px 0 0}
-.guide .g{display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:13.5px;line-height:1.45;cursor:pointer}
+.guide .ghead{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);padding:0 4px}
+.guide .g{display:flex;align-items:flex-start;gap:8px;padding:9px 8px 9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:13.5px;line-height:1.45}
 .guide .g .gi{flex:0 0 18px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--accent-fg);background:var(--muted);margin-top:1px}
-.guide .g .t{min-width:0}
+.guide .g .gt{flex:1 1 auto;min-width:0;text-align:left;background:none;border:0;padding:0;color:var(--fg);font:inherit;line-height:1.45;cursor:pointer}
 .guide .g.bad{border-color:var(--bad);background:var(--bad-soft)}
 .guide .g.bad .gi{background:var(--bad)}
 .guide .g.warn{border-color:var(--warn);background:var(--warn-soft)}
 .guide .g.warn .gi{background:var(--warn)}
 .guide .g.good{border-color:var(--good);background:var(--good-soft)}
 .guide .g.good .gi{background:var(--good)}
+.guide .gx{background:none;border:0;color:var(--muted);font-size:15px;line-height:1;padding:2px 5px;cursor:pointer;border-radius:8px}
+.guide .gx:hover{background:var(--surface-2);color:var(--fg)}
 .guide .gmore{align-self:flex-start;font-size:12px;color:var(--muted);background:none;border:0;padding:2px 4px;cursor:pointer;text-decoration:underline}
+.gbadge{display:inline-flex;align-items:center;gap:4px;height:32px;min-width:34px;justify-content:center;padding:0 9px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:700;cursor:pointer}
+.gbadge[hidden]{display:none}
+.gbadge.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .early .form{margin-bottom:12px}
 .early>p,.early>button{margin:0 0 14px}
 .etag{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin:0}
@@ -351,6 +357,7 @@ main>*{min-width:0}
       <b id="monthLabel"></b>
       <button class="ibtn" id="next" aria-label="เดือนถัดไป">›</button>
     </div>
+    <button class="gbadge" id="gBadge" type="button" data-act="gbadge" aria-label="คำแนะนำ" title="คำแนะนำ" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-2 8-2 8h16s-2-1-2-8"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg><b id="gBadgeN"></b></button>
     <button class="btn primary" id="addBtn">+ เพิ่มลูกหนี้</button>
     <button class="themebtn" id="themeBtn" aria-label="เปลี่ยนธีม" title="เปลี่ยนธีม">🎨</button>
   </div>
@@ -613,18 +620,33 @@ function guideTips(){
   const rank={bad:0,warn:1,info:2,good:3};
   return out.sort((a,b)=>rank[a.k]-rank[b.k]);
 }
-let guideOpen=false;
+let guideOpen=false,guideSeen=null,guideHidden=false,guidePeek=false,guideCur=[];
+function gSeenLoad(){if(guideSeen)return;try{guideSeen=JSON.parse(localStorage.getItem("guide-seen")||"[]")||[]}catch(e){guideSeen=[]}}
+function gSeenSave(){try{localStorage.setItem("guide-seen",JSON.stringify(guideSeen.slice(-300)))}catch(e){}}
 function renderGuide(){
-  const el=$("#guide");if(!el)return;
-  let list=[];try{list=guideTips()}catch(e){}
-  if(!list.length){el.hidden=true;el.innerHTML="";guideOpen=false;return}
-  el.hidden=false;
+  gSeenLoad();
+  const el=$("#guide"),badge=$("#gBadge");
+  let all=[];try{all=guideTips()}catch(e){}
+  const unseen=all.filter(t=>!guideSeen.includes(t.txt)),unread=unseen.length;
+  if(badge){
+    badge.hidden=!all.length;
+    badge.classList.toggle("on",unread>0);
+    $("#gBadgeN").textContent=unread>0?String(unread):"";
+    badge.title=unread?(unread+" คำแนะนำใหม่ — กดเพื่ออ่าน"):"คำแนะนำ (อ่านครบแล้ว)";
+    badge.setAttribute("aria-label",badge.title);
+  }
+  if(!el)return;
+  const show=unread?unseen:(guidePeek?all:[]);
+  if(!show.length||guideHidden){el.hidden=true;el.innerHTML="";return}
+  el.hidden=false;guideCur=show;
   const ico=k=>k==="bad"?"!":k==="warn"?"!":k==="good"?"✓":"i";
-  const show=guideOpen?list:list.slice(0,3);
-  el.innerHTML=show.map(t=>`<button type="button" class="g ${t.k}" data-act="gtip" data-area="${t.area}" data-tab="${t.tab}"><span class="gi">${ico(t.k)}</span><span class="t">${esc(t.txt)}</span></button>`).join("")+(list.length>3?`<button type="button" class="gmore" data-act="gmore">${guideOpen?"ย่อคำแนะนำ":"และอีก "+(list.length-3)+" คำแนะนำ"}</button>`:"");
+  const rows=show.slice(0,guideOpen?99:3).map((t,i)=>`<div class="g ${t.k}"><span class="gi">${ico(t.k)}</span><button type="button" class="gt" data-act="gtip" data-i="${i}">${esc(t.txt)}</button>${unread?`<button type="button" class="gx" data-act="gdismiss" data-i="${i}" aria-label="ปิดคำแนะนำนี้" title="อ่านแล้ว ปิด">✕</button>`:""}</div>`).join("");
+  const more=(!guideOpen&&show.length>3)?`<button type="button" class="gmore" data-act="gmore">และอีก ${show.length-3} คำแนะนำ</button>`:(guideOpen&&show.length>3?`<button type="button" class="gmore" data-act="gmore">ย่อคำแนะนำ</button>`:"");
+  el.innerHTML=`<div class="ghead"><span>คำแนะนำ <b>${unread?unread+" เรื่องที่ยังไม่อ่าน":"อ่านครบแล้ว"}</b></span><button type="button" class="gx" data-act="gclose" aria-label="ปิดแถบคำแนะนำ" title="ปิดแถบนี้ (แจ้งเตือนยังอยู่ที่กระดิ่ง)">✕</button></div>`+rows+more;
 }
 function guideGo(el){
-  const a=el.dataset.area,t=el.dataset.tab;
+  const t0=guideCur[+el.dataset.i];if(!t0)return;
+  const a=t0.area,t=t0.tab;
   area=a;try{localStorage.setItem("debt-area",a)}catch(e){}
   if(a==="cash"){ctab=t;try{localStorage.setItem("debt-ctab",t)}catch(e){}}
   else if(a==="debt"){tab=t;try{localStorage.setItem("debt-tab",t)}catch(e){}}
@@ -2164,6 +2186,9 @@ document.addEventListener("click",async e=>{
     case"stab":setSheetTab(el.dataset.k);break;
     case"gtip":guideGo(el);break;
     case"gmore":guideOpen=!guideOpen;renderGuide();break;
+    case"gdismiss":{const t=guideCur[+el.dataset.i];if(t){gSeenLoad();if(!guideSeen.includes(t.txt))guideSeen.push(t.txt);gSeenSave();renderGuide()}break}
+    case"gclose":guideHidden=true;guidePeek=false;renderGuide();break;
+    case"gbadge":{const vis=!$("#guide").hidden;guideHidden=vis;guidePeek=!vis;renderGuide();break}
     case"clearAsk":clearBox(true);break;
     case"clearCancel":clearBox();break;
     case"clearDo":clearAll();break;
