@@ -12,13 +12,14 @@
 
 แอพเก็บข้อมูลใน `localStorage` ก่อนเสมอ (เปิดได้แม้เน็ตหลุด) และซิงก์ขึ้นฐานข้อมูล **Supabase** (Postgres ฟรี) เป็นรายแถวทุก 5 วินาที — ไม่ต้องกดปุ่ม
 
-ตั้งค่าครั้งเดียว:
+โปรเจกต์ฐานข้อมูลสร้างไว้แล้ว: `megaapp-debtors` (`https://qezwzbxowckwoiihoyni.supabase.co`)
+— URL และ publishable key ฝังเป็นค่าเริ่มต้นในแอพแล้ว เครื่องใหม่จึงต้องกรอกแค่ **email + รหัสผ่าน**
 
-1. สมัคร/เข้าสู่ระบบที่ https://supabase.com → **New project** (ฟรี ไม่ต้องใส่บัตร) รอสร้างเสร็จ ~2 นาที
-2. เปิด **SQL Editor → New query** → วางเนื้อหาไฟล์ [`supabase.sql`](supabase.sql) → **Run**
-3. เปิด **Authentication → Providers → Email** → ปิด **Confirm email** (เพื่อให้สมัครแล้วใช้ได้ทันที)
-4. เปิด **Settings → API** → คัดลอก **Project URL** และ **anon public key**
-5. ในแอพ: แท็บ **ลูกหนี้ › รายงานสรุป › ซิงก์อัตโนมัติ** → ใส่ URL, anon key, email, รหัสผ่าน (ตั้งใหม่ได้เลย) → กด **สมัครบัญชี** (เครื่องแรก) หรือ **เชื่อมต่อ** (เครื่องที่เหลือด้วย email/รหัสผ่านเดียวกัน)
+บนเครื่องใหม่/มือถือ:
+1. เปิด `https://paskornc.github.io/megaapp/`
+2. แท็บ **ลูกหนี้ › รายงานสรุป › ซิงก์อัตโนมัติ** → ใส่ email + รหัสผ่าน → กด **เชื่อมต่อ** → รอ ~5 วิ ข้อมูลจะไหลลงมาเอง
+
+ถ้าจะสร้างฐานข้อมูลใหม่เอง (หรือย้ายโปรเจกต์): สร้างโปรเจกต์ที่ supabase.com → **SQL Editor** วาง [`supabase.sql`](supabase.sql) → **Run** → **Authentication → Providers → Email** ปิด **Confirm email** → เอา Project URL + publishable/anon key มาใส่ในช่องในแอพ
 
 หลักการ:
 - ซิงก์ **รายแถว** ตาม id — ส่ง/รับเฉพาะรายการที่เปลี่ยน เบาและเร็ว

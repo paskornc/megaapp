@@ -1567,7 +1567,10 @@ async function applySnap(o){
   if(mode!=="db")cSaveLocal();
   render();
 }
+const SB_DEF={url:"https://qezwzbxowckwoiihoyni.supabase.co",key:"sb_publishable_bQG5ZEsmb0aTtyWaHpp1GQ_1b6OhiZm"};
 let sbCfg={};try{sbCfg=JSON.parse(localStorage.getItem("sync-v2")||"{}")||{}}catch(e){sbCfg={}}
+if(!sbCfg.url)sbCfg.url=SB_DEF.url;
+if(!sbCfg.key)sbCfg.key=SB_DEF.key;
 let sbMirror={};try{sbMirror=JSON.parse(localStorage.getItem("sync-mirror-v2")||"{}")||{}}catch(e){sbMirror={}}
 const SYNRECS="recs",SYNCSEC=5;
 const sbSave=()=>{try{localStorage.setItem("sync-v2",JSON.stringify(sbCfg))}catch(e){}};
