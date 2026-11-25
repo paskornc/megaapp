@@ -1600,7 +1600,7 @@ function sbSetSession(t){
 }
 async function sbFetch(url,opts,ms){
   const ctl=typeof AbortController!=="undefined"?new AbortController():null;
-  const t=ctl?setTimeout(()=>{try{ctl.abort()}catch(e){}},ms||15000):null;
+  const t=ctl?setTimeout(()=>{try{ctl.abort()}catch(e){}},ms||30000):null;
   try{return await fetch(url,Object.assign({},opts,ctl?{signal:ctl.signal}:{}))}
   catch(e){throw new Error(e&&e.name==="AbortError"?"เชื่อมต่อช้า/หมดเวลา — เน็ตไม่ดีหรือออฟไลน์":(e&&e.message)||"เชื่อมต่อไม่ได้")}
   finally{if(t)clearTimeout(t)}
@@ -1696,24 +1696,37 @@ async function syPullAll(full){
   if(total){sbCfg.cursor=cur;sbSave();sbMirrorSave();syStat.down+=total}
   return total;
 }
-async function syCycle(verbose,full){
+async function syCycle(verbose,full,retried){
   if(!sbOn()){if(verbose)toast("ยังไม่ได้เชื่อมต่อฐานข้อมูล");return}
   if(syBusy)return;
   syBusy=true;
+  let retry=false;
   try{
     const got=await syPullAll(full);
     await syPushAll();
     syStat.at=Date.now();syStat.err=null;
     if(got)render();
     if(verbose)toast(got?("รับ "+got+" รายการจากคลาวด์"):"ซิงก์แล้ว — ข้อมูลตรงกัน");
-  }catch(e){syStat.err=e.message;if(verbose)toast("⚠ "+e.message)}
-  finally{syBusy=false;syStatRender()}
+  }catch(e){
+    const msg=(e&&e.message)||"ซิงก์ไม่สำเร็จ";
+    if(!retried&&/สิทธิ์|หมดอายุ|401|403/i.test(msg)){
+      sbCfg.access="";sbCfg.exp=0;sbSave();retry=true;
+    }else{
+      syStat.err=msg;if(verbose)toast("⚠ "+msg);
+    }
+  }
+  finally{if(!retry){syBusy=false;syStatRender()}}
+  if(retry){syBusy=false;return syCycle(verbose,full,true)}
 }
 async function syConnect(){
-  sbRead();
+  const {pass}=sbRead();
   try{
-    if(!sbCfg.refresh)await sbLogin("login");
-    else await sbRefresh();
+    if(pass||!sbCfg.refresh)await sbLogin("login");
+    else{
+      sbCfg.access="";sbCfg.exp=0;
+      try{await sbRefresh()}
+      catch(e){throw new Error(e.message+" — กรอกรหัสผ่านแล้วกด “เชื่อมต่อ” อีกครั้ง")}
+    }
   }catch(e){toast(e.message);syStat.err=e.message;syStatRender();return}
   sbCfg.cursor="";sbMirror={};sbMirrorSave();sbSave();
   syStart();
@@ -1746,7 +1759,7 @@ function syStart(){
   clearInterval(syTimer);
   syStatRender();
   if(!sbOn())return;
-  setTimeout(()=>syCycle(false,true),400);
+  setTimeout(async()=>{await syCycle(false,true);if(syStat.err)toast("⚠ ซิงก์ไม่สำเร็จ: "+syStat.err)},400);
   syTimer=setInterval(()=>syCycle(false),SYNCSEC*1000);
   if(!syStart.bound){
     syStart.bound=true;
