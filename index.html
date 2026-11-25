@@ -200,6 +200,17 @@ textarea.copybox{min-height:120px}
 details.keys{margin:0 16px 12px;font-size:12.5px;color:var(--muted)}
 details.keys>summary{cursor:pointer}
 details.keys>summary .hint{margin-left:6px}
+.guide{display:flex;flex-direction:column;gap:6px;margin:12px 0 0}
+.guide .g{display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:13.5px;line-height:1.45;cursor:pointer}
+.guide .g .gi{flex:0 0 18px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--accent-fg);background:var(--muted);margin-top:1px}
+.guide .g .t{min-width:0}
+.guide .g.bad{border-color:var(--bad);background:var(--bad-soft)}
+.guide .g.bad .gi{background:var(--bad)}
+.guide .g.warn{border-color:var(--warn);background:var(--warn-soft)}
+.guide .g.warn .gi{background:var(--warn)}
+.guide .g.good{border-color:var(--good);background:var(--good-soft)}
+.guide .g.good .gi{background:var(--good)}
+.guide .gmore{font-size:12px;color:var(--muted);padding:0 4px}
 .early .form{margin-bottom:12px}
 .early>p,.early>button{margin:0 0 14px}
 .etag{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin:0}
@@ -349,7 +360,7 @@ main>*{min-width:0}
   <nav class="tabs" role="tablist" id="tabs"></nav>
 </div></div>
 
-<div class="wrap"><main id="main"></main></div>
+<div class="wrap"><div id="guide" class="guide" hidden></div><main id="main"></main></div>
 <button class="fab" id="fab" data-act="c-add" aria-label="เพิ่มรายการ" hidden></button>
 <div id="overlay"></div>
 <div id="lightbox"></div>
@@ -554,13 +565,78 @@ async function copy(text){
   try{await navigator.clipboard.writeText(text);toast("คัดลอกข้อความแล้ว")}catch(e){showText(text)}
 }
 
+/* ---------- guide: แถบคำแนะนำ ---------- */
+function guideTips(){
+  const out=[],add=(k,txt,a,t)=>out.push({k,txt,area:a,tab:t});
+  try{
+    const a=alerts(),t=totals(ym),sum=l=>l.reduce((s,x)=>s+x.amt,0);
+    if(a.late.length)add("bad","ค้างชำระ "+a.late.length+" ราย รวม "+baht(sum(a.late))+" — ควรทวงวันนี้","debt","home");
+    else if(a.today.length)add("warn","ครบกำหนดวันนี้ "+a.today.length+" ราย รวม "+baht(sum(a.today)),"debt","home");
+    else if(a.tomorrow.length)add("warn","พรุ่งนี้ครบกำหนด "+a.tomorrow.length+" ราย รวม "+baht(sum(a.tomorrow)),"debt","home");
+    if(t.due>0){
+      const pct=Math.round(t.paid/t.due*100);
+      if(pct>=100)add("good","เก็บดอกเบี้ยเดือนนี้ครบแล้ว "+baht(t.due),"debt","home");
+      else if(!a.late.length&&t.out>0)add("warn","ยังไม่เก็บดอกเบี้ยเดือนนี้ "+baht(t.out)+" (เก็บได้ "+pct+"%)","debt","home");
+    }
+    if(!debtors.length)add("info","ยังไม่มีลูกหนี้ — เริ่มบันทึกเพื่อให้ระบบเตือนครบกำหนด","debt","home");
+  }catch(e){}
+  try{
+    const txs=allCash().filter(t=>t.type!=="transfer"),mt=txs.filter(t=>t.date.slice(0,7)===ym);
+    const inc=cSum(mt,"income"),exp=cSum(mt,"expense"),net=inc-exp;
+    if(!mt.length)add("info","เดือนนี้ยังไม่จดรายรับรายจ่าย","cash","day");
+    else{
+      if(exp>inc&&exp>0)add("bad","เดือนนี้จ่ายมากกว่ารับ "+baht(exp-inc)+" — ควรลดรายจ่ายหรือเพิ่มรายรับ","cash","rep");
+      else if(exp>0&&inc>0){
+        const top=cRank(mt,"expense",cCats())[0];
+        if(top&&top.v/exp>0.35)add("warn","หมวด “"+top.c.name+"” กิน "+Math.round(top.v/exp*100)+"% ของรายจ่ายรวม","cash","rep");
+        if(net/inc<0.1)add("warn","เหลือสุทธิเพียง "+Math.round(net/inc*100)+"% ของรายรับ — เป้าออมควรอย่างน้อย 10%","cash","rep");
+        else add("good","เหลือสุทธิ "+baht(net)+" ("+Math.round(net/inc*100)+"% ของรายรับ)","cash","rep");
+      }
+      if(qLimit()){const q=qMonth(txs,ym);if(q.over)add("warn","เกินวงเงินรายวัน "+q.over+" วัน (วงเงิน "+baht(qLimit())+"/วัน)","cash","rep")}
+    }
+  }catch(e){}
+  try{
+    if(holdings.length){
+      const st=iStats(holdings),pct=st.cost>0?st.pl/st.cost*100:0,tot=st.val;
+      const us=holdings.filter(h=>h.mkt==="us"),hasKey=fhKey()||tdKey();
+      if(us.length&&!hasKey)add("warn","ยังไม่ใส่คีย์ Finnhub — ราคาหุ้นสหรัฐจะไม่อัปเดตเอง","inv","port");
+      if(us.length&&hasKey){const old=us.filter(h=>h.priceAt&&Date.now()-new Date(h.priceAt).getTime()>3*86400000);if(old.length)add("warn","ราคา "+old.length+" ตัวเก่ากว่า 3 วัน — กดรีเฟรชราคา","inv","port")}
+      if(tot>0){
+        const big=holdings.map(h=>({h,v:hThb(h,(+h.qty||0)*(+h.price||0))})).sort((x,y)=>y.v-x.v)[0];
+        if(big&&big.h&&big.v/tot>0.35)add("warn","ถือ "+big.h.sym+" หนัก "+Math.round(big.v/tot*100)+"% ของพอร์ต — ควรกระจายความเสี่ยง","inv","port");
+        const cr=holdings.filter(h=>h.mkt==="crypto").reduce((s,h)=>s+hThb(h,(+h.qty||0)*(+h.price||0)),0);
+        if(cr/tot>0.25)add("warn","คริปโต "+Math.round(cr/tot*100)+"% ของพอร์ต — ผันผวนสูง","inv","port");
+      }
+      if(st.cost>0)add(pct>=0?"good":"warn","พอร์ต"+(pct>=0?"กำไร ":"ขาดทุน ")+Math.abs(pct).toFixed(1)+"% ("+sgn(st.pl)+")","inv","port");
+    }
+  }catch(e){}
+  const rank={bad:0,warn:1,info:2,good:3};
+  return out.sort((a,b)=>rank[a.k]-rank[b.k]);
+}
+function renderGuide(){
+  const el=$("#guide");if(!el)return;
+  let list=[];try{list=guideTips()}catch(e){}
+  if(!list.length){el.hidden=true;el.innerHTML="";return}
+  el.hidden=false;
+  const ico=k=>k==="bad"?"!":k==="warn"?"!":k==="good"?"✓":"i";
+  el.innerHTML=list.slice(0,3).map(t=>`<button type="button" class="g ${t.k}" data-act="gtip" data-area="${t.area}" data-tab="${t.tab}"><span class="gi">${ico(t.k)}</span><span class="t">${esc(t.txt)}</span></button>`).join("")+(list.length>3?`<div class="gmore">และอีก ${list.length-3} คำแนะนำ</div>`:"");
+}
+function guideGo(el){
+  const a=el.dataset.area,t=el.dataset.tab;
+  area=a;try{localStorage.setItem("debt-area",a)}catch(e){}
+  if(a==="cash"){ctab=t;try{localStorage.setItem("debt-ctab",t)}catch(e){}}
+  else if(a==="debt"){tab=t;try{localStorage.setItem("debt-tab",t)}catch(e){}}
+  iFails=0;render();window.scrollTo(0,0);
+}
+
 /* ---------- render ---------- */
 function render(){
   $("#monthLabel").textContent=ymLabel(ym);
   renderChrome();
   if(editId)sheetHead();
   const main=$("#main");
-  if(!loaded){main.innerHTML=`<div class="empty">กำลังโหลดข้อมูล…</div>`;return}
+  if(!loaded){$("#guide").hidden=true;main.innerHTML=`<div class="empty">กำลังโหลดข้อมูล…</div>`;return}
+  renderGuide();
   if(area==="inv"){main.innerHTML=iView();return}
   if(area==="cash"){
     main.innerHTML=ctab==="day"?cViewDay():ctab==="rep"?cViewRep():ctab==="wal"?cViewWal():cViewCat();
@@ -2084,6 +2160,7 @@ document.addEventListener("click",async e=>{
     case"closeLb":$("#lightbox").innerHTML="";break;
     case"earlyUse":earlyUse();break;
     case"stab":setSheetTab(el.dataset.k);break;
+    case"gtip":guideGo(el);break;
     case"clearAsk":clearBox(true);break;
     case"clearCancel":clearBox();break;
     case"clearDo":clearAll();break;
