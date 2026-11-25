@@ -645,7 +645,7 @@ function renderGuide(){
   }
   if(!el)return;
   if(!barOn){el.hidden=true;el.innerHTML="";return}
-  el.hidden=false;guideCur=show;
+  el.hidden=false;el.classList.remove("fading");guideCur=show;
   const ico=k=>k==="bad"?"!":k==="warn"?"!":k==="good"?"✓":"i";
   const rows=show.slice(0,guideOpen?99:3).map((t,i)=>`<div class="g ${t.k}"><span class="gi">${ico(t.k)}</span><button type="button" class="gt" data-act="gtip" data-i="${i}">${esc(t.txt)}</button>${unread?`<button type="button" class="gx" data-act="gdismiss" data-i="${i}" aria-label="ปิดคำแนะนำนี้" title="อ่านแล้ว ปิด">✕</button>`:""}</div>`).join("");
   const more=(!guideOpen&&show.length>3)?`<button type="button" class="gmore" data-act="gmore">และอีก ${show.length-3} คำแนะนำ</button>`:(guideOpen&&show.length>3?`<button type="button" class="gmore" data-act="gmore">ย่อคำแนะนำ</button>`:"");
