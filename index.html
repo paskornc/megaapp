@@ -1598,12 +1598,19 @@ function sbSetSession(t){
   if(t.user&&t.user.email)sbCfg.email=t.user.email;
   sbCfg.exp=Date.now()+((t.expires_in||3600)-60)*1000;sbSave();
 }
+async function sbFetch(url,opts,ms){
+  const ctl=typeof AbortController!=="undefined"?new AbortController():null;
+  const t=ctl?setTimeout(()=>{try{ctl.abort()}catch(e){}},ms||15000):null;
+  try{return await fetch(url,Object.assign({},opts,ctl?{signal:ctl.signal}:{}))}
+  catch(e){throw new Error(e&&e.name==="AbortError"?"เชื่อมต่อช้า/หมดเวลา — เน็ตไม่ดีหรือออฟไลน์":(e&&e.message)||"เชื่อมต่อไม่ได้")}
+  finally{if(t)clearTimeout(t)}
+}
 async function sbLogin(mode){
   if(!sbCfg.url||!sbCfg.key)throw new Error("ใส่ Project URL และ anon key ก่อน");
   const {pass}=sbRead();
   if(!sbCfg.email||!pass)throw new Error("ใส่ email และรหัสผ่านของ Supabase");
   const ep=mode==="signup"?"/auth/v1/signup":"/auth/v1/token?grant_type=password";
-  const r=await fetch(sbBase()+ep,{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({email:sbCfg.email,password:pass})});
+  const r=await sbFetch(sbBase()+ep,{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({email:sbCfg.email,password:pass})});
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(syErr(j.error_description||j.msg||j.message,r.status));
   if(!j.access_token){
@@ -1615,7 +1622,7 @@ async function sbLogin(mode){
 async function sbRefresh(){
   if(!sbCfg.refresh)throw new Error("ยังไม่ได้เข้าสู่ระบบ");
   if(sbCfg.access&&Date.now()<(sbCfg.exp||0))return sbCfg.access;
-  const r=await fetch(sbBase()+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({refresh_token:sbCfg.refresh})});
+  const r=await sbFetch(sbBase()+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({refresh_token:sbCfg.refresh})});
   const j=await r.json().catch(()=>({}));
   if(!r.ok){sbCfg.access="";sbCfg.refresh="";sbSave();throw new Error("เซสชันหมดอายุ — กด “เชื่อมต่อ” ใหม่")}
   sbSetSession(j);return j.access_token;
@@ -1661,7 +1668,7 @@ async function syPushAll(){
   const rows=[...ups.map(u=>({uid:sbCfg.uid,tbl:u.tbl,id:u.id,body:u.body})),...dels.map(d=>({uid:sbCfg.uid,tbl:d.tbl,id:d.id,body:null}))];
   for(let i=0;i<rows.length;i+=6){
     const chunk=rows.slice(i,i+6);
-    const r=await fetch(sbBase()+"/rest/v1/"+SYNRECS+"?on_conflict=uid,tbl,id",{method:"POST",headers:{...H,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(chunk)});
+    const r=await sbFetch(sbBase()+"/rest/v1/"+SYNRECS+"?on_conflict=uid,tbl,id",{method:"POST",headers:{...H,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(chunk)});
     if(!r.ok)throw new Error(syErr(await r.text(),r.status));
   }
   ups.forEach(u=>{sbMirror[u.tbl+"|"+u.id]=u._h});
@@ -1669,16 +1676,16 @@ async function syPushAll(){
   sbMirrorSave();syStat.up+=rows.length;
   return rows.length;
 }
-async function syPullAll(){
+async function syPullAll(full){
   const H=await sbH();
-  let cur=sbCfg.cursor&&sbCfg.cursor.u?sbCfg.cursor:null,total=0,guard=0;
+  let cur=(!full&&sbCfg.cursor&&sbCfg.cursor.u)?sbCfg.cursor:null,total=0,guard=0;
   while(guard++<20){
     let q=sbBase()+"/rest/v1/"+SYNRECS+"?select=tbl,id,body,updated_at&order=updated_at.asc,id.asc&limit=200";
     if(cur){
       const u=encodeURIComponent('"'+cur.u+'"'),i=encodeURIComponent('"'+cur.id+'"');
       q+="&or=(updated_at.gt."+u+",and(updated_at.eq."+u+",id.gt."+i+"))";
     }
-    const r=await fetch(q,{headers:{...H,cache:"no-store"}});
+    const r=await sbFetch(q,{headers:H,cache:"no-store"});
     if(!r.ok)throw new Error(syErr(await r.text(),r.status));
     const rows=await r.json();
     if(!Array.isArray(rows)||!rows.length)break;
@@ -1689,17 +1696,17 @@ async function syPullAll(){
   if(total){sbCfg.cursor=cur;sbSave();sbMirrorSave();syStat.down+=total}
   return total;
 }
-async function syCycle(verbose){
+async function syCycle(verbose,full){
   if(!sbOn()){if(verbose)toast("ยังไม่ได้เชื่อมต่อฐานข้อมูล");return}
   if(syBusy)return;
   syBusy=true;
   try{
-    const got=await syPullAll();
+    const got=await syPullAll(full);
     await syPushAll();
     syStat.at=Date.now();syStat.err=null;
     if(got)render();
     if(verbose)toast(got?("รับ "+got+" รายการจากคลาวด์"):"ซิงก์แล้ว — ข้อมูลตรงกัน");
-  }catch(e){syStat.err=e.message}
+  }catch(e){syStat.err=e.message;if(verbose)toast("⚠ "+e.message)}
   finally{syBusy=false;syStatRender()}
 }
 async function syConnect(){
@@ -1734,12 +1741,26 @@ function syMaybeAuto(){
   clearTimeout(syAutoT);
   syAutoT=setTimeout(()=>syCycle(false),1200);
 }
+let syKickT=0;
 function syStart(){
   clearInterval(syTimer);
   syStatRender();
   if(!sbOn())return;
-  setTimeout(()=>syCycle(false),600);
+  setTimeout(()=>syCycle(false,true),400);
   syTimer=setInterval(()=>syCycle(false),SYNCSEC*1000);
+  if(!syStart.bound){
+    syStart.bound=true;
+    const kick=()=>{
+      if(document.hidden||!sbOn()||syBusy)return;
+      if(Date.now()-(syKickT||0)<2000)return;
+      syKickT=Date.now();
+      syCycle(false,false);
+    };
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden)kick()});
+    window.addEventListener("pageshow",e=>{if(e.persisted)kick()});
+    window.addEventListener("focus",kick);
+    window.addEventListener("online",kick);
+  }
 }
 async function backupAll(){
   const o=snapObj();
