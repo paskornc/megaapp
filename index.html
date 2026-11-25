@@ -1,4 +1,20 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>
+/* โหมดเว็บทั่วไป (GitHub Pages): ไม่มี Claude runtime จึงเก็บข้อมูลใน localStorage ของเบราว์เซอร์ และให้ดาวน์โหลดไฟล์ผ่านเบราว์เซอร์โดยตรง */
+window.claude=window.claude||{use:async function(n){
+  if(n==="downloads")return{save:async function(o){
+    var b=new Blob([o.data],{type:"text/plain;charset=utf-8"}),a=document.createElement("a");
+    a.href=URL.createObjectURL(b);a.download=o.filename;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000)}};
+  return null}};
+</script>
 <title>สมุดลูกหนี้</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -1594,7 +1610,7 @@ function qSpent(txs,date){const ex=qExcl();return txs.reduce((x,t)=>t.type==="ex
 function qState(spent){
   const L=qLimit();if(!L)return null;
   const left=L-spent,k=spent>L+0.004?"over":spent>=L-0.004?"full":spent/L*100>=qWarn()?"near":"ok";
-  return{k,left,pct:Math.min(100,spent/L*100),t:{over:"เกินวงเงิน",full:"ครบวงเงิน",near:"ใกล้ครบวงเงิน",ok:"ยังอยู่ในวงเงิน"}[k]};
+  return{k,left,pct:Math.min(100,spent/L*100),t:{over:"เกินวงเงิน 😠",full:"ครบวงเงิน",near:"ใกล้ครบวงเงิน 😐",ok:"ใช้ไม่ถึงวงเงิน 😊"}[k]};
 }
 const qPill=st=>st?`<span class="pill ${st.k==="over"?"p-late":st.k==="full"?"p-soon":st.k==="near"?"p-part":"p-paid"}">${st.t}</span>`:"";
 const qColor=k=>k==="over"?"var(--bad)":k==="ok"?"var(--good)":"var(--warn)";
@@ -1603,6 +1619,9 @@ function qMonth(txs,m){
   txs.forEach(t=>{if(t.type==="expense"&&t.date&&t.date.slice(0,7)===m&&!ex.includes(t.cat))by[t.date]=(by[t.date]||0)+(+t.amount||0)});
   const r={spent:0,over:0,full:0,days:Object.keys(by).length};
   Object.keys(by).forEach(d=>{r.spent+=by[d];const k=qState(by[d]).k;if(k==="over")r.over++;else if(k==="full")r.full++});
+  const td=todayIso(),[yy,mm]=m.split("-").map(Number),dimm=new Date(yy,mm,0).getDate();
+  r.elapsed=m<td.slice(0,7)?dimm:m===td.slice(0,7)?+td.slice(8,10):0;
+  r.under=Math.max(0,r.elapsed-r.over-r.full);
   return r;
 }
 function qCard(txs,isNow){
@@ -1614,9 +1633,9 @@ function qCard(txs,isNow){
     const sp=qSpent(txs,todayIso()),st=qState(sp);
     h+=`<div class="qh"><b>วงเงินวันนี้ ${baht(L)}</b>${qPill(st)}<button class="gear" data-act="c-quota">ตั้งค่า</button></div>
     <div class="qbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(st.pct)}" aria-label="ใช้ไปเท่าไรของวงเงินวันนี้"><i style="width:${st.pct}%;--q:${qColor(st.k)}"></i></div>
-    <div class="qnum"><span>ใช้ไป <b>${baht(sp)}</b></span><span>${st.left>=0?`เหลือ <b>${baht(st.left)}</b>`:`<span class="bad">เกินวงเงิน <b>${baht(-st.left)}</b></span>`}</span></div>`;
+    <div class="qnum"><span>ใช้ไป <b>${baht(sp)}</b></span><span>${st.left>=0?`เหลือ <b>${baht(st.left)}</b>`:`<span class="bad">😠 เกินวงเงิน <b>${baht(-st.left)}</b></span>`}</span></div>`;
   }else h+=`<div class="qh"><b>วงเงินรายวัน ${baht(L)}</b><button class="gear" data-act="c-quota">ตั้งค่า</button></div>`;
-  h+=`<div class="qsub">${ymLabel(ym)} ใช้ไป <b>${baht(mo.spent)}</b> จากงบเทียบเท่า <b>${baht(budget)}</b> (${dim} วัน) · เกินวงเงิน <b>${mo.over}</b> วัน · ครบวงเงิน <b>${mo.full}</b> วัน<br>ไม่นับหมวด: ${qExcl().map(id=>{const c=cCats()[id];return c?esc(c.name):""}).filter(Boolean).join(", ")||"ไม่มี"}</div></section>`;
+  h+=`<div class="qsub">${ymLabel(ym)} ใช้ไป <b>${baht(mo.spent)}</b> จากงบเทียบเท่า <b>${baht(budget)}</b> (${dim} วัน) · ใช้ไม่ถึงวงเงิน <b>${mo.under}</b> วัน 😊 · เกินวงเงิน <b>${mo.over}</b> วัน 😠 · ครบวงเงิน <b>${mo.full}</b> วัน<br>ไม่นับหมวด: ${qExcl().map(id=>{const c=cCats()[id];return c?esc(c.name):""}).filter(Boolean).join(", ")||"ไม่มี"}</div></section>`;
   return h;
 }
 function openQuota(){
@@ -1857,7 +1876,7 @@ function cOpenTx(id,preset,rs){
     closeSheet();
     await cPut("tx",id||uid(),obj);
     let qm="";
-    if(d.type==="expense"&&qLimit()&&!qExcl().includes(d.cat)){const st=qState(qSpent(allCash(),dt));if(st&&(st.k==="full"||st.k==="over"))qm=" · "+(st.k==="over"?"เกินวงเงินของวันที่ "+isoToTh(dt)+" ฿"+money(-st.left):"ครบวงเงินของวันที่ "+isoToTh(dt)+" แล้ว")}
+    if(d.type==="expense"&&qLimit()&&!qExcl().includes(d.cat)){const st=qState(qSpent(allCash(),dt));if(st&&(st.k==="full"||st.k==="over"))qm=" · "+(st.k==="over"?"😠 เกินวงเงินของวันที่ "+isoToTh(dt)+" ฿"+money(-st.left):"ครบวงเงินของวันที่ "+isoToTh(dt)+" แล้ว")}
     render();toast((edit?"แก้ไขแล้ว":"บันทึกแล้ว")+qm);
   });
   const dl=$("#x_del");
@@ -2125,4 +2144,5 @@ initStore();
 })();
 </script>
 
-</body></html>
+</body>
+</html>
