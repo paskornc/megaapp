@@ -1164,7 +1164,8 @@ function iView(){
   <div class="tools" style="padding:12px 16px"><div class="chips">${chips}</div>
    <label class="hint" style="display:flex;align-items:center;gap:6px;margin-left:auto">USD/THB<input id="i_fx" type="number" step="any" inputmode="decimal" value="${esc(ifx())}" style="width:84px;padding:4px 8px"></label></div>
   <div class="tools" style="padding:0 16px 12px"><button class="btn primary" data-act="i-refresh"${ivBusy?" disabled":""}>${ivBusy==="r"?"กำลังดึงราคา…":"รีเฟรชราคา"}</button>
-   ${sampleFn?`<label class="btn" for="i_shot">นำเข้าจากภาพหน้าจอพอร์ต</label><input type="file" id="i_shot" accept="image/*" hidden>`:""}<label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="i_auto" style="width:auto"${invset.auto===false?"":" checked"}>อัปเดตอัตโนมัติทุก 1 นาที (ขณะเปิดหน้านี้)</label><span class="hint" id="i_stat"></span></div>${iDiagHtml()}
+   ${sampleFn?`<label class="btn" for="i_shot">นำเข้าจากภาพหน้าจอพอร์ต</label><input type="file" id="i_shot" accept="image/*" hidden>`:""}<label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="i_auto" style="width:auto"${invset.auto===false?"":" checked"}>อัปเดตอัตโนมัติทุก 1 นาที (ขณะเปิดหน้านี้)</label><span class="hint" id="i_stat"></span></div>
+  <div class="tools" style="padding:0 16px 12px;flex-wrap:wrap"><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Finnhub (ฟรี)<input id="i_fh" type="password" autocomplete="off" spellcheck="false" placeholder="วางคีย์ที่นี่" value="${esc(invset.fh||"")}" style="width:150px;padding:4px 8px"></label><label class="hint" style="display:flex;align-items:center;gap:6px">คีย์ Twelve Data<input id="i_td" type="password" autocomplete="off" spellcheck="false" placeholder="ไม่บังคับ" value="${esc(invset.td||"")}" style="width:150px;padding:4px 8px"></label><span class="hint">${fhKey()?"Finnhub พร้อมใช้ — ราคาหุ้นสหรัฐอัปเดตอัตโนมัติ":tdKey()?"Twelve Data พร้อมใช้":"ยังไม่ใส่คีย์ → หุ้นสหรัฐดึงราคาไม่ได้"}</span></div>${iDiagHtml()}
   <div class="tw"><table style="min-width:620px"><thead><tr><th>สินทรัพย์</th><th class="num">จำนวน</th><th class="num">ต้นทุน/หน่วย</th><th class="num">ราคาล่าสุด</th><th class="num">มูลค่า</th><th class="num">กำไร/ขาดทุน (฿)</th></tr></thead>
   <tbody>${rows||`<tr><td colspan="6" class="empty">ยังไม่มีสินทรัพย์ กดปุ่ม “เพิ่มสินทรัพย์” มุมขวาล่าง</td></tr>`}</tbody></table></div>
   <div class="alert-row"><span class="hint" style="flex:1 1 260px">หุ้นสหรัฐและคริปโตคิดเป็นดอลลาร์ แปลงเป็นบาทด้วยอัตรา USD/THB ด้านบน หุ้นไทยคิดเป็นบาท ถ้ารีเฟรชราคาไม่ได้ ให้กรอกราคาเอง (แตะแถวเพื่อแก้) หรือบอก Claude ในแชตให้อัปเดตราคาให้</span></div></section>`;
@@ -1245,7 +1246,11 @@ async function tryQ(log,label,fn){
   return null;
 }
 const yq=(host,y)=>async()=>{const j=await getJ("https://"+host+"/v8/finance/chart/"+encodeURIComponent(y)+"?interval=1d&range=1d");return j.chart.result[0].meta.regularMarketPrice};
-const yqProxy=y=>async()=>{const u="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(y)+"?interval=1d&range=1d";const j=await getJ("https://corsproxy.io/?url="+encodeURIComponent(u),10000);return j.chart.result[0].meta.regularMarketPrice};
+const yqProxy=y=>async()=>{const u="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(y)+"?interval=1d&range=1d";const j=await getJ("https://api.allorigins.win/raw?url="+encodeURIComponent(u),12000);return j.chart.result[0].meta.regularMarketPrice};
+const fhKey=()=>String(invset.fh||"").trim();
+const tdKey=()=>String(invset.td||"").trim();
+const fhQ=(s,k)=>async()=>{const j=await getJ("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(s)+"&token="+encodeURIComponent(k));if(j&&j.error)throw new Error(String(j.error).slice(0,40));return j.c};
+const tdQ=(s,k)=>async()=>{const j=await getJ("https://api.twelvedata.com/price?symbol="+encodeURIComponent(s)+"&apikey="+encodeURIComponent(k));if(j&&j.code&&+j.code!==200)throw new Error(String(j.message||"error").slice(0,40));return j.price};
 const stooq=s=>async()=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);try{const r=await fetch("https://stooq.com/q/l/?s="+encodeURIComponent(s.toLowerCase())+".us&f=sc&h&e=csv",{signal:c.signal});return parseFloat((await r.text()).split("\n")[1].split(",")[1])}finally{clearTimeout(t)}};
 async function iQuote(h,log,cgMap,avMap){
   const s=h.sym.toUpperCase();let v=null;
@@ -1258,10 +1263,12 @@ async function iQuote(h,log,cgMap,avMap){
     return v;
   }
   const y=h.mkt==="th"?(s.endsWith(".BK")?s:s+".BK"):s;
-  v=await tryQ(log,"Yahoo-1",yq("query1.finance.yahoo.com",y));
+  if(h.mkt==="us"&&fhKey())v=await tryQ(log,"Finnhub",fhQ(s,fhKey()));
+  if(!v&&h.mkt==="us"&&tdKey())v=await tryQ(log,"Twelve Data",tdQ(s,tdKey()));
+  if(!v)v=await tryQ(log,"Yahoo-1",yq("query1.finance.yahoo.com",y));
   if(!v)v=await tryQ(log,"Yahoo-2",yq("query2.finance.yahoo.com",y));
   if(!v&&h.mkt==="us")v=await tryQ(log,"Stooq",stooq(s));
-  if(!v)v=await tryQ(log,"Yahoo ผ่านตัวกลาง",yqProxy(y));
+  if(!v)v=await tryQ(log,"Yahoo ผ่านตัวกลาง (allorigins)",yqProxy(y));
   return v;
 }
 async function iFx(log){
@@ -1297,6 +1304,7 @@ async function iRefresh(silent){
   const avAfter=(r)=>{avUsed++;if(r&&r.limit){avStop=true;avUsed=Math.max(avUsed,25)}};
   const usList=holdings.filter(x=>x.mkt==="us").sort((x,y)=>((+x.price>0)-(+y.price>0))||String(x.priceAt||"").localeCompare(String(y.priceAt||"")));
   for(const h of usList){
+    if(!mcpNs){dg.av.push(h.sym+": ข้าม (โหมดเว็บไม่มีตัวเชื่อมต่อ Alpha Vantage — ใช้ Finnhub/Twelve Data/Yahoo แทน)");continue}
     const age=h.priceAt?Date.now()-new Date(h.priceAt).getTime():1e12,fresh=+h.price>0&&age<(silent?AV_TTL:10*60000);
     if(fresh){skip.add(h.id);dg.av.push(h.sym+": ใช้ราคาเดิม (ดึงจาก Alpha Vantage ทุก "+(silent?"6 ชั่วโมง":"10 นาที")+" เพื่อประหยัดโควต้าฟรีวันละ 25 ครั้ง)");continue}
     if(!avOk()){dg.av.push(h.sym+": ข้าม ("+(avStop?"โควต้าฟรีหมดแล้ว":"ใช้โควต้าวันนี้ไป "+avUsed+"/25 ครั้ง เหลือไว้ให้ปุ่มกดเอง")+")");continue}
@@ -1413,7 +1421,8 @@ function csvInv(){
     holdings.map(h=>{const v=(+h.qty||0)*(+h.price||0);return[h.sym,MKT[h.mkt]?MKT[h.mkt][0]:h.mkt,h.ccy||"",h.qty,h.cost,h.price||"",h.priceAt||"",+h.price>0?v.toFixed(2):"",+h.price>0?(v-(+h.qty||0)*(+h.cost||0)).toFixed(2):""]}));
 }
 async function backupAll(){
-  const o={app:"สมุดลูกหนี้",version:1,exportedAt:new Date().toISOString(),debtors,accounts,cashtx,cashcats,cashSettings:csettings,holdings,invSettings:invset};
+  const invNoKeys=(({fh,td,...rest})=>rest)(invset);
+  const o={app:"สมุดลูกหนี้",version:1,exportedAt:new Date().toISOString(),debtors,accounts,cashtx,cashcats,cashSettings:csettings,holdings,invSettings:invNoKeys};
   const text=JSON.stringify(o,null,1);
   try{
     const dl=await claude.use("downloads");
@@ -1534,7 +1543,7 @@ async function cDel(kind,id){
 }
 function safeRender(){
   const ae=document.activeElement;
-  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx"))return;
+  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx,#i_fh,#i_td"))return;
   render();
 }
 
@@ -2047,6 +2056,7 @@ function renderChrome(){
 document.addEventListener("change",async e=>{
   const t=e.target;
   if(t.id==="i_auto"){await invPut({auto:t.checked});if(t.checked){iFails=0;iRefresh(true)}}
+  else if(t.id==="i_fh"||t.id==="i_td"){await invPut({[t.id==="i_fh"?"fh":"td"]:t.value.trim()});iFails=0;render();if(t.value.trim()){toast("บันทึกคีย์แล้ว กำลังดึงราคา");iRefresh(true)}else toast("ลบคีย์แล้ว")}
   else if(t.id==="i_fx"){const v=+t.value;if(v>0){await invPut({fx:v});render()}}
   else if(t.id==="rs_file"&&t.files&&t.files[0]){const f=t.files[0];t.value="";restoreAll(f)}
   else if(t.id==="i_shot"&&t.files&&t.files[0]){const f=t.files[0];t.value="";iShot(f)}
