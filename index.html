@@ -1578,6 +1578,15 @@ const sbMirrorSave=()=>{try{localStorage.setItem("sync-mirror-v2",JSON.stringify
 const sbOn=()=>!!(sbCfg.url&&sbCfg.key&&sbCfg.refresh);
 const sbBase=()=>String(sbCfg.url||"").replace(/\/+$/,"");
 const syHash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h.toString(36)+":"+s.length};
+const syCanon=v=>{
+  const walk=x=>{
+    if(x===null||typeof x!=="object")return JSON.stringify(x===undefined?null:x);
+    if(Array.isArray(x))return "["+x.map(walk).join(",")+"]";
+    return "{"+Object.keys(x).sort().map(k=>JSON.stringify(k)+":"+walk(x[k])).join(",")+"}";
+  };
+  return walk(v);
+};
+const syHashObj=v=>syHash(syCanon(v));
 function syErr(msg,st){
   const m=String(msg||"");
   if(st===404||/does not exist|relation .* not exist|42P01/i.test(m))return "ยังไม่มีตาราง recs — รัน SQL ใน Supabase ก่อน (ดูไฟล์ supabase.sql)";
@@ -1661,7 +1670,7 @@ function syStatRender(){
 }
 async function syPushAll(){
   const m=syRows(),ups=[],dels=[];
-  m.forEach((r,k)=>{const h=syHash(JSON.stringify(r.body));if(sbMirror[k]!==h)ups.push({tbl:r.tbl,id:r.id,body:r.body,_h:h})});
+  m.forEach((r,k)=>{const h=syHashObj(r.body);if(sbMirror[k]!==h)ups.push({tbl:r.tbl,id:r.id,body:r.body,_h:h})});
   Object.keys(sbMirror).forEach(k=>{if(!m.has(k)){const s=k.split("|");dels.push({tbl:s[0],id:s.slice(1).join("|"),body:null})}});
   if(!ups.length&&!dels.length)return 0;
   const H=await sbH();
@@ -1689,7 +1698,11 @@ async function syPullAll(full){
     if(!r.ok)throw new Error(syErr(await r.text(),r.status));
     const rows=await r.json();
     if(!Array.isArray(rows)||!rows.length)break;
-    rows.forEach(x=>{syApply(x.tbl,x.id,x.body);sbMirror[x.tbl+"|"+x.id]=syHash(JSON.stringify(x.body));cur={u:x.updated_at,id:x.id}});
+    rows.forEach(x=>{
+      const k=x.tbl+"|"+x.id,h=syHashObj(x.body);
+      if(sbMirror[k]!==h){syApply(x.tbl,x.id,x.body);sbMirror[k]=h}
+      cur={u:x.updated_at,id:x.id};
+    });
     total+=rows.length;
     if(rows.length<200)break;
   }
