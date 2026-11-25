@@ -1570,6 +1570,20 @@ const syOn=()=>!!(syncSet.tok&&syncSet.gist);
 const sySave=()=>{try{localStorage.setItem("sync-v1",JSON.stringify(syncSet))}catch(e){}};
 const syH=()=>({Authorization:"Bearer "+syncSet.tok,Accept:"application/vnd.github+json","Content-Type":"application/json"});
 const syHash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h+":"+s.length};
+function syTokRead(){
+  const el=document.querySelector("#sy_tok");
+  const v=el&&el.value?el.value.trim():"";
+  if(v&&v!==syncSet.tok){syncSet.tok=v;sySave()}
+  return (syncSet.tok||"").trim();
+}
+async function ghFind(){
+  const r=await fetch(GH+"/gists?per_page=100&_="+Date.now(),{headers:syH(),cache:"no-store"});
+  if(!r.ok)throw new Error(syErr(r.status));
+  const arr=await r.json();
+  const g=(Array.isArray(arr)?arr:[]).find(x=>x.files&&x.files[SYNF]);
+  if(!g)return "";
+  syncSet.gist=g.id;sySave();return g.id;
+}
 function syErr(s){
   if(s===401)return "โทเคนไม่ถูกต้อง/หมดอายุ — สร้างใหม่ที่ github.com/settings/tokens (scope gist)";
   if(s===404)return "ไม่พบ gist — กด “ส่งขึ้นคลาวด์” เพื่อสร้างใหม่";
@@ -1601,16 +1615,30 @@ async function ghPull(){
   return JSON.parse(f.content);
 }
 async function syPush(quiet){
-  try{await ghPush(JSON.stringify(snapObj()));if(!quiet)toast("ส่งข้อมูลขึ้นคลาวด์แล้ว")}
-  catch(e){if(!quiet)toast("ซิงก์ไม่สำเร็จ: "+e.message)}
+  if(!syTokRead()){if(!quiet)toast("ใส่โทเคน GitHub ก่อน");return}
+  try{
+    if(!syncSet.gist)await ghFind();
+    await ghPush(JSON.stringify(snapObj()));
+    if(!quiet)toast("ส่งข้อมูลขึ้นคลาวด์แล้ว");
+    render();
+  }catch(e){if(!quiet)toast("ซิงก์ไม่สำเร็จ: "+e.message)}
 }
+const syCount=()=>({d:debtors.length,a:accounts.length,c:cashtx.length,h:holdings.length});
 async function syPull(){
+  if(!syTokRead()){toast("ใส่โทเคน GitHub ก่อน");return}
   let o;
-  try{o=await ghPull()}catch(e){toast("ซิงก์ไม่สำเร็จ: "+e.message);return}
-  if(!o||o.app!=="สมุดลูกหนี้"){toast("ยังไม่มีข้อมูลบนคลาวด์ — กด “ส่งขึ้นคลาวด์” จากเครื่องที่มีข้อมูลก่อน");return}
+  try{
+    if(!syncSet.gist)await ghFind();
+    if(!syncSet.gist){toast("ไม่พบข้อมูลบนคลาวด์ — ที่เครื่องที่มีข้อมูล กด “ส่งขึ้นคลาวด์” ก่อน");return}
+    o=await ghPull();
+  }catch(e){toast("ซิงก์ไม่สำเร็จ: "+e.message);return}
+  if(!o||o.app!=="สมุดลูกหนี้"){toast("ยังไม่มีข้อมูลบนคลาวด์ — ที่เครื่องที่มีข้อมูล กด “ส่งขึ้นคลาวด์” ก่อน");return}
   const when=String(o.exportedAt||"").slice(0,16).replace("T"," ");
-  if(!confirm("ดึงข้อมูลจากคลาวด์ ("+when+")?\nข้อมูลที่ id ตรงกันจะถูกเขียนทับ รายการที่มีเฉพาะในเครื่องนี้จะยังอยู่"))return;
-  await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();toast("ดึงข้อมูลจากคลาวด์แล้ว");
+  const rc=[(o.debtors||[]).length,(o.cashtx||[]).length,(o.holdings||[]).length];
+  if(!confirm("ดึงข้อมูลจากคลาวด์ ("+when+")\nลูกหนี้ "+rc[0]+" • รายรับรายจ่าย "+rc[1]+" • หุ้น "+rc[2]+"\nข้อมูลที่ id ตรงกันจะถูกเขียนทับ รายการที่มีเฉพาะในเครื่องนี้จะยังอยู่"))return;
+  await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();
+  const n=syCount();
+  toast("ดึงแล้ว: ลูกหนี้ "+n.d+" • รายรับรายจ่าย "+n.c+" • หุ้น "+n.h);
 }
 let syAutoT=null,syBusy=false;
 function syMaybeAuto(){
@@ -1624,8 +1652,9 @@ function syMaybeAuto(){
   },15000);
 }
 async function syBootCheck(){
-  if(!syOn())return;
+  if(!(syncSet.tok||"").trim())return;
   try{
+    if(!syncSet.gist&&!await ghFind())return;
     const o=await ghPull();
     if(!o||!o.exportedAt)return;
     if(syncSet.lastPull&&o.exportedAt<=syncSet.lastPull)return;
