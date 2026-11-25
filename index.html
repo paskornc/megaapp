@@ -210,7 +210,7 @@ details.keys>summary .hint{margin-left:6px}
 .guide .g.warn .gi{background:var(--warn)}
 .guide .g.good{border-color:var(--good);background:var(--good-soft)}
 .guide .g.good .gi{background:var(--good)}
-.guide .gmore{font-size:12px;color:var(--muted);padding:0 4px}
+.guide .gmore{align-self:flex-start;font-size:12px;color:var(--muted);background:none;border:0;padding:2px 4px;cursor:pointer;text-decoration:underline}
 .early .form{margin-bottom:12px}
 .early>p,.early>button{margin:0 0 14px}
 .etag{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin:0}
@@ -613,13 +613,15 @@ function guideTips(){
   const rank={bad:0,warn:1,info:2,good:3};
   return out.sort((a,b)=>rank[a.k]-rank[b.k]);
 }
+let guideOpen=false;
 function renderGuide(){
   const el=$("#guide");if(!el)return;
   let list=[];try{list=guideTips()}catch(e){}
-  if(!list.length){el.hidden=true;el.innerHTML="";return}
+  if(!list.length){el.hidden=true;el.innerHTML="";guideOpen=false;return}
   el.hidden=false;
   const ico=k=>k==="bad"?"!":k==="warn"?"!":k==="good"?"✓":"i";
-  el.innerHTML=list.slice(0,3).map(t=>`<button type="button" class="g ${t.k}" data-act="gtip" data-area="${t.area}" data-tab="${t.tab}"><span class="gi">${ico(t.k)}</span><span class="t">${esc(t.txt)}</span></button>`).join("")+(list.length>3?`<div class="gmore">และอีก ${list.length-3} คำแนะนำ</div>`:"");
+  const show=guideOpen?list:list.slice(0,3);
+  el.innerHTML=show.map(t=>`<button type="button" class="g ${t.k}" data-act="gtip" data-area="${t.area}" data-tab="${t.tab}"><span class="gi">${ico(t.k)}</span><span class="t">${esc(t.txt)}</span></button>`).join("")+(list.length>3?`<button type="button" class="gmore" data-act="gmore">${guideOpen?"ย่อคำแนะนำ":"และอีก "+(list.length-3)+" คำแนะนำ"}</button>`:"");
 }
 function guideGo(el){
   const a=el.dataset.area,t=el.dataset.tab;
@@ -2161,6 +2163,7 @@ document.addEventListener("click",async e=>{
     case"earlyUse":earlyUse();break;
     case"stab":setSheetTab(el.dataset.k);break;
     case"gtip":guideGo(el);break;
+    case"gmore":guideOpen=!guideOpen;renderGuide();break;
     case"clearAsk":clearBox(true);break;
     case"clearCancel":clearBox();break;
     case"clearDo":clearAll();break;
