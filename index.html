@@ -217,6 +217,7 @@ details.keys>summary .hint{margin-left:6px}
 .gbadge{display:inline-flex;align-items:center;gap:4px;height:32px;min-width:34px;justify-content:center;padding:0 9px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:700;cursor:pointer}
 .gbadge[hidden]{display:none}
 .gbadge.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.gbadge.open{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .early .form{margin-bottom:12px}
 .early>p,.early>button{margin:0 0 14px}
 .etag{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin:0}
@@ -628,16 +629,19 @@ function renderGuide(){
   const el=$("#guide"),badge=$("#gBadge");
   let all=[];try{all=guideTips()}catch(e){}
   const unseen=all.filter(t=>!guideSeen.includes(t.txt)),unread=unseen.length;
+  const show=unread?unseen:(guidePeek?all:[]);
+  const barOn=!!show.length&&!guideHidden;
   if(badge){
     badge.hidden=!all.length;
     badge.classList.toggle("on",unread>0);
+    badge.classList.toggle("open",barOn);
+    badge.setAttribute("aria-expanded",String(barOn));
     $("#gBadgeN").textContent=unread>0?String(unread):"";
-    badge.title=unread?(unread+" คำแนะนำใหม่ — กดเพื่ออ่าน"):"คำแนะนำ (อ่านครบแล้ว)";
+    badge.title=(barOn?"ซ่อนคำแนะนำ":unread?(unread+" คำแนะนำใหม่ — กดเพื่ออ่าน"):"คำแนะนำ (อ่านครบแล้ว)");
     badge.setAttribute("aria-label",badge.title);
   }
   if(!el)return;
-  const show=unread?unseen:(guidePeek?all:[]);
-  if(!show.length||guideHidden){el.hidden=true;el.innerHTML="";return}
+  if(!barOn){el.hidden=true;el.innerHTML="";return}
   el.hidden=false;guideCur=show;
   const ico=k=>k==="bad"?"!":k==="warn"?"!":k==="good"?"✓":"i";
   const rows=show.slice(0,guideOpen?99:3).map((t,i)=>`<div class="g ${t.k}"><span class="gi">${ico(t.k)}</span><button type="button" class="gt" data-act="gtip" data-i="${i}">${esc(t.txt)}</button>${unread?`<button type="button" class="gx" data-act="gdismiss" data-i="${i}" aria-label="ปิดคำแนะนำนี้" title="อ่านแล้ว ปิด">✕</button>`:""}</div>`).join("");
