@@ -469,7 +469,7 @@ async function initStore(){
       return;
     }
   }catch(e){}
-  debtors=lsLoad();accounts=accLoad();cLoad();hLoad();loaded=true;render();maybeNotify();setTimeout(iAutoTick,2500);
+  debtors=lsLoad();accounts=accLoad();cLoad();hLoad();loaded=true;render();maybeNotify();setTimeout(iAutoTick,2500);setTimeout(syBootCheck,2500);
 }
 function clean(d){const o={...d};delete o.id;return o}
 async function persist(d){
@@ -676,6 +676,7 @@ function render(){
   const main=$("#main");
   if(!loaded){$("#guide").hidden=true;main.innerHTML=`<div class="empty">กำลังโหลดข้อมูล…</div>`;return}
   renderGuide();
+  syMaybeAuto();
   if(area==="inv"){main.innerHTML=iView();return}
   if(area==="cash"){
     main.innerHTML=ctab==="day"?cViewDay():ctab==="rep"?cViewRep():ctab==="wal"?cViewWal():cViewCat();
@@ -845,7 +846,13 @@ function viewReport(){
   <section class="panel"><h2>ดอกเบี้ยที่ต้องเก็บเทียบกับที่เก็บได้ 6 เดือนล่าสุด</h2>${chart()}
     <div class="legend"><span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>ต้องเก็บ</span><span><i style="background:var(--accent)"></i>เก็บได้</span></div></section>
   <section class="panel"><h2>ส่งออกข้อมูล</h2><div class="alert-row"><span class="hint" style="flex:1 1 240px">ไฟล์ CSV เปิดด้วย Excel ได้ ภาษาไทยไม่เพี้ยน</span>
-    <button class="btn" data-act="csvMonth">รายงานเดือน${ymLabel(ym)}</button><button class="btn" data-act="csvAll">รายชื่อลูกหนี้ทั้งหมด</button><button class="btn" data-act="csvCash">รายรับรายจ่ายทั้งหมด</button><button class="btn" data-act="csvInv">พอร์ตลงทุน</button><button class="btn primary" data-act="backupAll">สำรองข้อมูลทั้งหมด (JSON)</button><label class="btn" for="rs_file">กู้คืนจากไฟล์สำรอง</label><input type="file" id="rs_file" accept=".json,application/json" hidden></div></section>`;
+    <button class="btn" data-act="csvMonth">รายงานเดือน${ymLabel(ym)}</button><button class="btn" data-act="csvAll">รายชื่อลูกหนี้ทั้งหมด</button><button class="btn" data-act="csvCash">รายรับรายจ่ายทั้งหมด</button><button class="btn" data-act="csvInv">พอร์ตลงทุน</button><button class="btn primary" data-act="backupAll">สำรองข้อมูลทั้งหมด (JSON)</button><label class="btn" for="rs_file">กู้คืนจากไฟล์สำรอง</label><input type="file" id="rs_file" accept=".json,application/json" hidden></div></section>
+  <section class="panel"><h2>ซิงก์ข้ามเครื่อง <small>${syOn()?"เชื่อมต่อแล้ว":"ยังไม่ได้เชื่อมต่อ"}</small></h2>
+    <div class="alert-row" style="flex-wrap:wrap"><label class="hint" style="flex:1 1 240px;display:flex;align-items:center;gap:6px">โทเคน GitHub<input id="sy_tok" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… หรือ github_pat_… (scope gist)" value="${esc(syncSet.tok||"")}" style="flex:1 1 160px;padding:6px 8px"></label><button class="btn" data-act="sy-save">บันทึกโทเคน</button></div>
+    <div class="alert-row" style="flex-wrap:wrap"><span class="hint" style="flex:1 1 220px">${syOn()?"gist "+esc(String(syncSet.gist).slice(0,8))+"… · "+(syncSet.lastPush?"ส่งล่าสุด "+esc(String(syncSet.lastPush).slice(0,16).replace("T"," ")):"ยังไม่เคยส่ง"):"ใส่โทเคนที่เครื่องหลักก่อน → กด “ส่งขึ้นคลาวด์” → เครื่องอื่นใส่โทเคนเดียวกันแล้วกด “ดึงจากคลาวด์”"}</span>
+      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="sy_auto" style="width:auto"${syncSet.auto===false?"":" checked"}>ส่งขึ้นอัตโนมัติ</label>
+      <button class="btn" data-act="sy-pull">ดึงจากคลาวด์</button><button class="btn primary" data-act="sy-push">ส่งขึ้นคลาวด์</button></div>
+    <p class="hint" style="padding:0 16px 14px;margin:0">ข้อมูลเก็บใน gist แบบส่วนตัวของคุณ (ไม่ขึ้น repo เว็บ) · โทเคนเก็บในเบราว์เซอร์เครื่องนั้นเท่านั้น และไม่ถูกใส่ในไฟล์สำรอง · ข้อมูลรวมรายการตาม id (รายการที่มีเฉพาะในเครื่องจะไม่หาย)</p></section>`;
 }
 function chart(){
   const ms=[];for(let i=5;i>=0;i--)ms.push(ymAdd(ym,-i));
@@ -1540,9 +1547,94 @@ function csvInv(){
   saveCsv("พอร์ตลงทุน.csv",["ชื่อย่อ","ตลาด","สกุลเงิน","จำนวน","ต้นทุน/หน่วย","ราคาล่าสุด","อัปเดตราคา","มูลค่า","กำไร/ขาดทุน"],
     holdings.map(h=>{const v=(+h.qty||0)*(+h.price||0);return[h.sym,MKT[h.mkt]?MKT[h.mkt][0]:h.mkt,h.ccy||"",h.qty,h.cost,h.price||"",h.priceAt||"",+h.price>0?v.toFixed(2):"",+h.price>0?(v-(+h.qty||0)*(+h.cost||0)).toFixed(2):""]}));
 }
-async function backupAll(){
+/* ---------- snapshot + ซิงก์ข้ามเครื่อง ---------- */
+function snapObj(){
   const invNoKeys=(({fh,td,...rest})=>rest)(invset);
-  const o={app:"สมุดลูกหนี้",version:1,exportedAt:new Date().toISOString(),debtors,accounts,cashtx,cashcats,cashSettings:csettings,holdings,invSettings:invNoKeys};
+  return {app:"สมุดลูกหนี้",version:1,exportedAt:new Date().toISOString(),debtors,accounts,cashtx,cashcats,cashSettings:csettings,holdings,invSettings:invNoKeys};
+}
+async function applySnap(o){
+  const up=(arr,list,col,local)=>{(arr||[]).forEach(x=>{const i=list.findIndex(y=>y.id===x.id);if(i<0)list.push(x);else list[i]=x});return mode==="db"&&col?Promise.all((arr||[]).map(x=>col.doc(x.id).set(clean(x)).catch(()=>{}))):(local(),null)};
+  await up(o.debtors,debtors,col,lsSave);
+  await up(o.accounts,accounts,acol,accSaveLocal);
+  await up(o.cashtx,cashtx,ccol,cSaveLocal);
+  await up(o.holdings,holdings,hcol,hSaveLocal);
+  const ck=o.cashcats||{};Object.keys(ck).forEach(k=>{cashcats[k]=ck[k];if(mode==="db"&&kcol)kcol.doc(k).set(ck[k]).catch(()=>{})});
+  if(o.cashSettings)await cPut("set","cash",o.cashSettings);
+  if(o.invSettings)await invPut(o.invSettings);
+  if(mode!=="db")cSaveLocal();
+  render();
+}
+let syncSet={};try{syncSet=JSON.parse(localStorage.getItem("sync-v1")||"{}")||{}}catch(e){syncSet={}}
+const SYNF="megaapp-data.json",GH="https://api.github.com";
+const syOn=()=>!!(syncSet.tok&&syncSet.gist);
+const sySave=()=>{try{localStorage.setItem("sync-v1",JSON.stringify(syncSet))}catch(e){}};
+const syH=()=>({Authorization:"Bearer "+syncSet.tok,Accept:"application/vnd.github+json","Content-Type":"application/json"});
+const syHash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h+":"+s.length};
+function syErr(s){
+  if(s===401)return "โทเคนไม่ถูกต้อง/หมดอายุ — สร้างใหม่ที่ github.com/settings/tokens (scope gist)";
+  if(s===404)return "ไม่พบ gist — กด “ส่งขึ้นคลาวด์” เพื่อสร้างใหม่";
+  if(s===403)return "ติดสิทธิ์ (403) — ตรวจว่าโทเคนมี scope gist";
+  return "เชื่อมต่อ GitHub ไม่ได้ ("+s+")";
+}
+async function ghPush(txt){
+  if(!syncSet.tok)throw new Error("ยังไม่ได้ใส่โทเคน");
+  const body=f=>JSON.stringify({description:"สมุดลูกหนี้ – ข้อมูลซิงก์",public:false,files:{[SYNF]:{content:f}}});
+  let r;
+  if(!syncSet.gist){
+    r=await fetch(GH+"/gists",{method:"POST",headers:syH(),body:body(txt)});
+    if(!r.ok)throw new Error(syErr(r.status));
+    const j=await r.json();syncSet.gist=j.id;sySave();
+  }else{
+    r=await fetch(GH+"/gists/"+syncSet.gist,{method:"PATCH",headers:syH(),body:body(txt)});
+    if(r.status===404){syncSet.gist="";sySave();return ghPush(txt)}
+    if(!r.ok)throw new Error(syErr(r.status));
+  }
+  syncSet.lastPush=new Date().toISOString();syncSet.lastHash=syHash(txt);sySave();
+}
+async function ghPull(){
+  if(!syncSet.tok||!syncSet.gist)throw new Error("ยังไม่ได้เชื่อมต่อ");
+  const r=await fetch(GH+"/gists/"+syncSet.gist,{headers:syH()});
+  if(!r.ok)throw new Error(syErr(r.status));
+  const j=await r.json(),f=j.files&&j.files[SYNF];
+  if(!f)return null;
+  if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);if(!rr.ok)throw new Error("อ่านไฟล์ซิงก์ไม่ได้");return JSON.parse(await rr.text())}
+  return JSON.parse(f.content);
+}
+async function syPush(quiet){
+  try{await ghPush(JSON.stringify(snapObj()));if(!quiet)toast("ส่งข้อมูลขึ้นคลาวด์แล้ว")}
+  catch(e){if(!quiet)toast("ซิงก์ไม่สำเร็จ: "+e.message)}
+}
+async function syPull(){
+  let o;
+  try{o=await ghPull()}catch(e){toast("ซิงก์ไม่สำเร็จ: "+e.message);return}
+  if(!o||o.app!=="สมุดลูกหนี้"){toast("ยังไม่มีข้อมูลบนคลาวด์ — กด “ส่งขึ้นคลาวด์” จากเครื่องที่มีข้อมูลก่อน");return}
+  const when=String(o.exportedAt||"").slice(0,16).replace("T"," ");
+  if(!confirm("ดึงข้อมูลจากคลาวด์ ("+when+")?\nข้อมูลที่ id ตรงกันจะถูกเขียนทับ รายการที่มีเฉพาะในเครื่องนี้จะยังอยู่"))return;
+  await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();toast("ดึงข้อมูลจากคลาวด์แล้ว");
+}
+let syAutoT=null,syBusy=false;
+function syMaybeAuto(){
+  if(!syOn()||syncSet.auto===false)return;
+  clearTimeout(syAutoT);
+  syAutoT=setTimeout(async()=>{
+    if(syBusy)return;
+    const txt=JSON.stringify(snapObj());
+    if(syncSet.lastHash===syHash(txt))return;
+    syBusy=true;try{await ghPush(txt)}catch(e){}finally{syBusy=false}
+  },15000);
+}
+async function syBootCheck(){
+  if(!syOn())return;
+  try{
+    const o=await ghPull();
+    if(!o||!o.exportedAt)return;
+    if(syncSet.lastPull&&o.exportedAt<=syncSet.lastPull)return;
+    const when=String(o.exportedAt).slice(0,16).replace("T"," ");
+    if(confirm("พบข้อมูลที่อัปเดตจากเครื่องอื่น ("+when+")\nดึงมารวมกับข้อมูลในเครื่องนี้?")){await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();toast("ซิงก์ข้อมูลล่าสุดแล้ว")}
+  }catch(e){}
+}
+async function backupAll(){
+  const o=snapObj();
   const text=JSON.stringify(o,null,1);
   try{
     const dl=await claude.use("downloads");
@@ -1556,16 +1648,7 @@ async function restoreAll(file){
   try{o=JSON.parse(await file.text())}catch(e){toast("อ่านไฟล์ไม่ได้");return}
   if(!o||o.app!=="สมุดลูกหนี้"||!Array.isArray(o.debtors)){toast("ไม่ใช่ไฟล์สำรองของแอพนี้");return}
   if(!confirm("กู้คืนข้อมูลจากไฟล์สำรอง ("+(o.exportedAt||"").slice(0,10)+")?\nรายการที่มี id เดียวกันจะถูกเขียนทับ รายการอื่นที่มีอยู่จะไม่ถูกลบ"))return;
-  const up=(arr,list,col,local)=>{(arr||[]).forEach(x=>{const i=list.findIndex(y=>y.id===x.id);if(i<0)list.push(x);else list[i]=x});return mode==="db"&&col?Promise.all((arr||[]).map(x=>col.doc(x.id).set(clean(x)).catch(()=>{}))):(local(),null)};
-  await up(o.debtors,debtors,col,lsSave);
-  await up(o.accounts,accounts,acol,accSaveLocal);
-  await up(o.cashtx,cashtx,ccol,cSaveLocal);
-  await up(o.holdings,holdings,hcol,hSaveLocal);
-  const ck=o.cashcats||{};Object.keys(ck).forEach(k=>{cashcats[k]=ck[k];if(mode==="db"&&kcol)kcol.doc(k).set(ck[k]).catch(()=>{})});
-  if(o.cashSettings)await cPut("set","cash",o.cashSettings);
-  if(o.invSettings)await invPut(o.invSettings);
-  if(mode!=="db")cSaveLocal();
-  render();toast("กู้คืนข้อมูลแล้ว");
+  await applySnap(o);toast("กู้คืนข้อมูลแล้ว");
 }
 
 /* ---------- สมุดรายรับรายจ่าย ---------- */
@@ -1663,7 +1746,7 @@ async function cDel(kind,id){
 }
 function safeRender(){
   const ae=document.activeElement;
-  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx,#i_fh,#i_td"))return;
+  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx,#i_fh,#i_td,#sy_tok"))return;
   render();
 }
 
@@ -2175,7 +2258,8 @@ function renderChrome(){
 /* ---------- events ---------- */
 document.addEventListener("change",async e=>{
   const t=e.target;
-  if(t.id==="i_auto"){await invPut({auto:t.checked});if(t.checked){iFails=0;iRefresh(true)}}
+  if(t.id==="sy_auto"){syncSet.auto=t.checked;sySave();toast(t.checked?"เปิดส่งข้อมูลอัตโนมัติ":"ปิดส่งข้อมูลอัตโนมัติ")}
+  else if(t.id==="i_auto"){await invPut({auto:t.checked});if(t.checked){iFails=0;iRefresh(true)}}
   else if(t.id==="i_fh"||t.id==="i_td"){await invPut({[t.id==="i_fh"?"fh":"td"]:t.value.trim()});iFails=0;render();if(t.value.trim()){toast("บันทึกคีย์แล้ว กำลังดึงราคา");iRefresh(true)}else toast("ลบคีย์แล้ว")}
   else if(t.id==="i_fx"){const v=+t.value;if(v>0){await invPut({fx:v});render()}}
   else if(t.id==="rs_file"&&t.files&&t.files[0]){const f=t.files[0];t.value="";restoreAll(f)}
@@ -2237,6 +2321,9 @@ document.addEventListener("click",async e=>{
     case"csvCash":csvCash();break;
     case"csvInv":csvInv();break;
     case"backupAll":backupAll();break;
+    case"sy-save":{const v=(($("#sy_tok")||{}).value||"").trim();syncSet.tok=v;if(!v)syncSet.gist="";sySave();render();toast(v?"บันทึกโทเคนแล้ว — กด “ส่งขึ้นคลาวด์” หรือ “ดึงจากคลาวด์”":"ลบโทเคนแล้ว");break}
+    case"sy-push":syPush();break;
+    case"sy-pull":syPull();break;
   }
 });
 document.addEventListener("keydown",e=>{
