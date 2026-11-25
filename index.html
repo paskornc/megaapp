@@ -200,7 +200,10 @@ textarea.copybox{min-height:120px}
 details.keys{margin:0 16px 12px;font-size:12.5px;color:var(--muted)}
 details.keys>summary{cursor:pointer}
 details.keys>summary .hint{margin-left:6px}
-.guide{display:flex;flex-direction:column;gap:6px;margin:12px 0 0}
+.guide{display:flex;flex-direction:column;gap:6px;margin:12px 0 0;transition:opacity .2s ease,transform .2s ease}
+.guide.fading{opacity:0;transform:translateY(-4px);pointer-events:none}
+.guide .g{transition:opacity .18s ease,transform .18s ease}
+.guide .g.out{opacity:0;transform:translateX(8px)}
 .guide .ghead{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);padding:0 4px}
 .guide .g{display:flex;align-items:flex-start;gap:8px;padding:9px 8px 9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:13.5px;line-height:1.45}
 .guide .g .gi{flex:0 0 18px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--accent-fg);background:var(--muted);margin-top:1px}
@@ -647,6 +650,14 @@ function renderGuide(){
   const rows=show.slice(0,guideOpen?99:3).map((t,i)=>`<div class="g ${t.k}"><span class="gi">${ico(t.k)}</span><button type="button" class="gt" data-act="gtip" data-i="${i}">${esc(t.txt)}</button>${unread?`<button type="button" class="gx" data-act="gdismiss" data-i="${i}" aria-label="ปิดคำแนะนำนี้" title="อ่านแล้ว ปิด">✕</button>`:""}</div>`).join("");
   const more=(!guideOpen&&show.length>3)?`<button type="button" class="gmore" data-act="gmore">และอีก ${show.length-3} คำแนะนำ</button>`:(guideOpen&&show.length>3?`<button type="button" class="gmore" data-act="gmore">ย่อคำแนะนำ</button>`:"");
   el.innerHTML=`<div class="ghead"><span>คำแนะนำ <b>${unread?unread+" เรื่องที่ยังไม่อ่าน":"อ่านครบแล้ว"}</b></span><button type="button" class="gx" data-act="gclose" aria-label="ปิดแถบคำแนะนำ" title="ปิดแถบนี้ (แจ้งเตือนยังอยู่ที่กระดิ่ง)">✕</button></div>`+rows+more;
+}
+let guideFadeT=null;
+function guideFade(cb){
+  const el=$("#guide");
+  if(!el||el.hidden){cb();return}
+  el.classList.add("fading");
+  clearTimeout(guideFadeT);
+  guideFadeT=setTimeout(()=>{el.classList.remove("fading");cb()},200);
 }
 function guideGo(el){
   const t0=guideCur[+el.dataset.i];if(!t0)return;
@@ -2190,9 +2201,15 @@ document.addEventListener("click",async e=>{
     case"stab":setSheetTab(el.dataset.k);break;
     case"gtip":guideGo(el);break;
     case"gmore":guideOpen=!guideOpen;renderGuide();break;
-    case"gdismiss":{const t=guideCur[+el.dataset.i];if(t){gSeenLoad();if(!guideSeen.includes(t.txt))guideSeen.push(t.txt);gSeenSave();renderGuide()}break}
-    case"gclose":guideHidden=true;guidePeek=false;renderGuide();break;
-    case"gbadge":{const vis=!$("#guide").hidden;guideHidden=vis;guidePeek=!vis;renderGuide();break}
+    case"gdismiss":{
+      const t=guideCur[+el.dataset.i];if(!t)break;
+      gSeenLoad();if(!guideSeen.includes(t.txt))guideSeen.push(t.txt);gSeenSave();
+      const row=el.closest(".g"),last=guideCur.length<=1;
+      if(last||!row){guideFade(()=>renderGuide())}
+      else{row.classList.add("out");setTimeout(()=>renderGuide(),185)}
+      break}
+    case"gclose":guideFade(()=>{guideHidden=true;guidePeek=false;renderGuide()});break;
+    case"gbadge":{const vis=!$("#guide").hidden;if(vis)guideFade(()=>{guideHidden=true;guidePeek=false;renderGuide()});else{guideHidden=false;guidePeek=true;renderGuide()}break}
     case"clearAsk":clearBox(true);break;
     case"clearCancel":clearBox();break;
     case"clearDo":clearAll();break;
