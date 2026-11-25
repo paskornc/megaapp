@@ -158,6 +158,7 @@ td.note{color:var(--muted);font-size:13px;max-width:260px}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
 .cols>*{min-width:0}
 .hint{font-size:13px;color:var(--muted)}
+.hint.warn{color:var(--warn)}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-bottom:8px}
 .thumb{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2);padding:0;cursor:pointer}
 .thumb img,.slip img{width:100%;height:100%;object-fit:cover;display:block}
@@ -469,7 +470,7 @@ async function initStore(){
       return;
     }
   }catch(e){}
-  debtors=lsLoad();accounts=accLoad();cLoad();hLoad();loaded=true;render();maybeNotify();setTimeout(iAutoTick,2500);setTimeout(syBootCheck,2500);
+  debtors=lsLoad();accounts=accLoad();cLoad();hLoad();loaded=true;render();maybeNotify();setTimeout(iAutoTick,2500);syStart();
 }
 function clean(d){const o={...d};delete o.id;return o}
 async function persist(d){
@@ -677,6 +678,7 @@ function render(){
   if(!loaded){$("#guide").hidden=true;main.innerHTML=`<div class="empty">กำลังโหลดข้อมูล…</div>`;return}
   renderGuide();
   syMaybeAuto();
+  syStatRender();
   if(area==="inv"){main.innerHTML=iView();return}
   if(area==="cash"){
     main.innerHTML=ctab==="day"?cViewDay():ctab==="rep"?cViewRep():ctab==="wal"?cViewWal():cViewCat();
@@ -847,12 +849,13 @@ function viewReport(){
     <div class="legend"><span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>ต้องเก็บ</span><span><i style="background:var(--accent)"></i>เก็บได้</span></div></section>
   <section class="panel"><h2>ส่งออกข้อมูล</h2><div class="alert-row"><span class="hint" style="flex:1 1 240px">ไฟล์ CSV เปิดด้วย Excel ได้ ภาษาไทยไม่เพี้ยน</span>
     <button class="btn" data-act="csvMonth">รายงานเดือน${ymLabel(ym)}</button><button class="btn" data-act="csvAll">รายชื่อลูกหนี้ทั้งหมด</button><button class="btn" data-act="csvCash">รายรับรายจ่ายทั้งหมด</button><button class="btn" data-act="csvInv">พอร์ตลงทุน</button><button class="btn primary" data-act="backupAll">สำรองข้อมูลทั้งหมด (JSON)</button><label class="btn" for="rs_file">กู้คืนจากไฟล์สำรอง</label><input type="file" id="rs_file" accept=".json,application/json" hidden></div></section>
-  <section class="panel"><h2>ซิงก์ข้ามเครื่อง <small>${syOn()?"เชื่อมต่อแล้ว":"ยังไม่ได้เชื่อมต่อ"}</small></h2>
-    <div class="alert-row" style="flex-wrap:wrap"><label class="hint" style="flex:1 1 240px;display:flex;align-items:center;gap:6px">โทเคน GitHub<input id="sy_tok" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… หรือ github_pat_… (scope gist)" value="${esc(syncSet.tok||"")}" style="flex:1 1 160px;padding:6px 8px"></label><button class="btn" data-act="sy-save">บันทึกโทเคน</button></div>
-    <div class="alert-row" style="flex-wrap:wrap"><span class="hint" style="flex:1 1 220px">${syOn()?"gist "+esc(String(syncSet.gist).slice(0,8))+"… · "+(syncSet.lastPush?"ส่งล่าสุด "+esc(String(syncSet.lastPush).slice(0,16).replace("T"," ")):"ยังไม่เคยส่ง"):"ใส่โทเคนที่เครื่องหลักก่อน → กด “ส่งขึ้นคลาวด์” → เครื่องอื่นใส่โทเคนเดียวกันแล้วกด “ดึงจากคลาวด์”"}</span>
-      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="sy_auto" style="width:auto"${syncSet.auto===false?"":" checked"}>ส่งขึ้นอัตโนมัติ</label>
-      <button class="btn" data-act="sy-pull">ดึงจากคลาวด์</button><button class="btn primary" data-act="sy-push">ส่งขึ้นคลาวด์</button></div>
-    <p class="hint" style="padding:0 16px 14px;margin:0">ข้อมูลเก็บใน gist แบบส่วนตัวของคุณ (ไม่ขึ้น repo เว็บ) · โทเคนเก็บในเบราว์เซอร์เครื่องนั้นเท่านั้น และไม่ถูกใส่ในไฟล์สำรอง · ข้อมูลรวมรายการตาม id (รายการที่มีเฉพาะในเครื่องจะไม่หาย)</p></section>`;
+  <section class="panel"><h2>ซิงก์อัตโนมัติ <small>${sbOn()?"เชื่อมต่อแล้ว":"ยังไม่ได้เชื่อมต่อ"}</small></h2>
+    <div class="alert-row" style="flex-wrap:wrap"><label class="hint" style="flex:1 1 100%;display:flex;align-items:center;gap:6px">Project URL<input id="sy_url" autocomplete="off" spellcheck="false" placeholder="https://xxxx.supabase.co" value="${esc(sbCfg.url||"")}" style="flex:1 1 240px;padding:6px 8px"></label></div>
+    <div class="alert-row" style="flex-wrap:wrap"><label class="hint" style="flex:1 1 100%;display:flex;align-items:center;gap:6px">anon key<input id="sy_key" type="password" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi… (Supabase → Settings → API)" value="${esc(sbCfg.key||"")}" style="flex:1 1 240px;padding:6px 8px"></label></div>
+    <div class="alert-row" style="flex-wrap:wrap"><label class="hint" style="flex:1 1 200px;display:flex;align-items:center;gap:6px">email<input id="sy_email" autocomplete="username" spellcheck="false" value="${esc(sbCfg.email||"")}" style="flex:1 1 120px;padding:6px 8px"></label><label class="hint" style="flex:1 1 200px;display:flex;align-items:center;gap:6px">รหัสผ่าน<input id="sy_pass" type="password" autocomplete="current-password" style="flex:1 1 120px;padding:6px 8px"></label></div>
+    <div class="alert-row" style="flex-wrap:wrap"><span id="sy_stat" class="hint" style="flex:1 1 100%">ยังไม่ได้เชื่อมต่อ — ข้อมูลเก็บในเครื่องนี้เท่านั้น</span></div>
+    <div class="alert-row" style="flex-wrap:wrap"><span class="hint" style="flex:1 1 180px"></span><button class="btn" data-act="sy-out">ตัดการเชื่อมต่อ</button><button class="btn" data-act="sy-now">ซิงก์เดี๋ยวนี้</button><button class="btn" data-act="sy-signup">สมัครบัญชี</button><button class="btn primary" data-act="sy-connect">เชื่อมต่อ</button></div>
+    <p class="hint" style="padding:0 16px 14px;margin:0">ใช้ Supabase (Postgres ฟรี): สร้างโปรเจกต์ → รัน SQL ใน <code>supabase.sql</code> → คัดลอก Project URL + anon key มาใส่ · ทุกเครื่องเข้าด้วย email/รหัสผ่านชุดเดียวกัน แล้วข้อมูลจะซิงก์เป็นรายการทุก ${SYNCSEC} วินาทีเอง (ไม่ต้องกดอะไร)</p></section>`;
 }
 function chart(){
   const ms=[];for(let i=5;i>=0;i--)ms.push(ymAdd(ym,-i));
@@ -1564,103 +1567,176 @@ async function applySnap(o){
   if(mode!=="db")cSaveLocal();
   render();
 }
-let syncSet={};try{syncSet=JSON.parse(localStorage.getItem("sync-v1")||"{}")||{}}catch(e){syncSet={}}
-const SYNF="megaapp-data.json",GH="https://api.github.com";
-const syOn=()=>!!(syncSet.tok&&syncSet.gist);
-const sySave=()=>{try{localStorage.setItem("sync-v1",JSON.stringify(syncSet))}catch(e){}};
-const syH=()=>({Authorization:"Bearer "+syncSet.tok,Accept:"application/vnd.github+json","Content-Type":"application/json"});
-const syHash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h+":"+s.length};
-function syTokRead(){
-  const el=document.querySelector("#sy_tok");
-  const v=el&&el.value?el.value.trim():"";
-  if(v&&v!==syncSet.tok){syncSet.tok=v;sySave()}
-  return (syncSet.tok||"").trim();
+let sbCfg={};try{sbCfg=JSON.parse(localStorage.getItem("sync-v2")||"{}")||{}}catch(e){sbCfg={}}
+let sbMirror={};try{sbMirror=JSON.parse(localStorage.getItem("sync-mirror-v2")||"{}")||{}}catch(e){sbMirror={}}
+const SYNRECS="recs",SYNCSEC=5;
+const sbSave=()=>{try{localStorage.setItem("sync-v2",JSON.stringify(sbCfg))}catch(e){}};
+const sbMirrorSave=()=>{try{localStorage.setItem("sync-mirror-v2",JSON.stringify(sbMirror))}catch(e){}};
+const sbOn=()=>!!(sbCfg.url&&sbCfg.key&&sbCfg.refresh);
+const sbBase=()=>String(sbCfg.url||"").replace(/\/+$/,"");
+const syHash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h.toString(36)+":"+s.length};
+function syErr(msg,st){
+  const m=String(msg||"");
+  if(st===404||/does not exist|relation .* not exist|42P01/i.test(m))return "ยังไม่มีตาราง recs — รัน SQL ใน Supabase ก่อน (ดูไฟล์ supabase.sql)";
+  if(st===401||st===403)return "ไม่มีสิทธิ์หรือเซสชันหมดอายุ — กด “เชื่อมต่อ” ใหม่";
+  if(/Invalid login credentials/i.test(m))return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+  if(/Email not confirmed/i.test(m))return "ยังไม่ยืนยันอีเมล — ปิด Confirm email ใน Supabase หรือยืนยันในอีเมล";
+  if(/already registered/i.test(m))return "อีเมลนี้มีบัญชีแล้ว — กด “เชื่อมต่อ” (ไม่ต้องสมัครใหม่)";
+  return m.slice(0,120)||("ผิดพลาด ("+st+")");
 }
-async function ghFind(){
-  const r=await fetch(GH+"/gists?per_page=100&_="+Date.now(),{headers:syH(),cache:"no-store"});
-  if(!r.ok)throw new Error(syErr(r.status));
-  const arr=await r.json();
-  const g=(Array.isArray(arr)?arr:[]).find(x=>x.files&&x.files[SYNF]);
-  if(!g)return "";
-  syncSet.gist=g.id;sySave();return g.id;
+function sbRead(){
+  const g=id=>{const e=document.querySelector(id);return e&&e.value?e.value.trim():""};
+  sbCfg.url=g("#sy_url")||sbCfg.url;sbCfg.key=g("#sy_key")||sbCfg.key;sbCfg.email=g("#sy_email")||sbCfg.email;
+  return {pass:(document.querySelector("#sy_pass")||{}).value||""};
 }
-function syErr(s){
-  if(s===401)return "โทเคนไม่ถูกต้อง/หมดอายุ — สร้างใหม่ที่ github.com/settings/tokens (scope gist)";
-  if(s===404)return "ไม่พบ gist — กด “ส่งขึ้นคลาวด์” เพื่อสร้างใหม่";
-  if(s===403)return "ติดสิทธิ์ (403) — ตรวจว่าโทเคนมี scope gist";
-  return "เชื่อมต่อ GitHub ไม่ได้ ("+s+")";
+function sbSetSession(t){
+  sbCfg.access=t.access_token;sbCfg.refresh=t.refresh_token;
+  if(t.user&&t.user.id)sbCfg.uid=t.user.id;
+  if(t.user&&t.user.email)sbCfg.email=t.user.email;
+  sbCfg.exp=Date.now()+((t.expires_in||3600)-60)*1000;sbSave();
 }
-async function ghPush(txt){
-  if(!syncSet.tok)throw new Error("ยังไม่ได้ใส่โทเคน");
-  const body=f=>JSON.stringify({description:"สมุดลูกหนี้ – ข้อมูลซิงก์",public:false,files:{[SYNF]:{content:f}}});
-  let r;
-  if(!syncSet.gist){
-    r=await fetch(GH+"/gists",{method:"POST",headers:syH(),body:body(txt)});
-    if(!r.ok)throw new Error(syErr(r.status));
-    const j=await r.json();syncSet.gist=j.id;sySave();
-  }else{
-    r=await fetch(GH+"/gists/"+syncSet.gist,{method:"PATCH",headers:syH(),body:body(txt)});
-    if(r.status===404){syncSet.gist="";sySave();return ghPush(txt)}
-    if(!r.ok)throw new Error(syErr(r.status));
+async function sbLogin(mode){
+  if(!sbCfg.url||!sbCfg.key)throw new Error("ใส่ Project URL และ anon key ก่อน");
+  const {pass}=sbRead();
+  if(!sbCfg.email||!pass)throw new Error("ใส่ email และรหัสผ่านของ Supabase");
+  const ep=mode==="signup"?"/auth/v1/signup":"/auth/v1/token?grant_type=password";
+  const r=await fetch(sbBase()+ep,{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({email:sbCfg.email,password:pass})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(syErr(j.error_description||j.msg||j.message,r.status));
+  if(!j.access_token){
+    if(mode==="signup")throw new Error("สมัครแล้ว — เปิดอีเมลยืนยัน หรือปิด Confirm email แล้วกด “เชื่อมต่อ”");
+    throw new Error(syErr(j.msg||j.message,r.status));
   }
-  syncSet.lastPush=new Date().toISOString();syncSet.lastHash=syHash(txt);sySave();
+  sbSetSession(j);return j;
 }
-async function ghPull(){
-  if(!syncSet.tok||!syncSet.gist)throw new Error("ยังไม่ได้เชื่อมต่อ");
-  const r=await fetch(GH+"/gists/"+syncSet.gist,{headers:syH()});
-  if(!r.ok)throw new Error(syErr(r.status));
-  const j=await r.json(),f=j.files&&j.files[SYNF];
-  if(!f)return null;
-  if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);if(!rr.ok)throw new Error("อ่านไฟล์ซิงก์ไม่ได้");return JSON.parse(await rr.text())}
-  return JSON.parse(f.content);
+async function sbRefresh(){
+  if(!sbCfg.refresh)throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+  if(sbCfg.access&&Date.now()<(sbCfg.exp||0))return sbCfg.access;
+  const r=await fetch(sbBase()+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:sbCfg.key},body:JSON.stringify({refresh_token:sbCfg.refresh})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){sbCfg.access="";sbCfg.refresh="";sbSave();throw new Error("เซสชันหมดอายุ — กด “เชื่อมต่อ” ใหม่")}
+  sbSetSession(j);return j.access_token;
 }
-async function syPush(quiet){
-  if(!syTokRead()){if(!quiet)toast("ใส่โทเคน GitHub ก่อน");return}
+const sbH=async()=>({apikey:sbCfg.key,Authorization:"Bearer "+await sbRefresh(),"Content-Type":"application/json"});
+function syRows(){
+  const m=new Map(),put=(tbl,id,body)=>m.set(tbl+"|"+id,{tbl,id,body});
+  debtors.forEach(x=>{if(x&&x.id)put("debtors",x.id,x)});
+  accounts.forEach(x=>{if(x&&x.id)put("accounts",x.id,x)});
+  cashtx.forEach(x=>{if(x&&x.id)put("cashtx",x.id,x)});
+  holdings.forEach(x=>{if(x&&x.id)put("holdings",x.id,x)});
+  Object.keys(cashcats||{}).forEach(k=>put("cashcat",k,cashcats[k]));
+  put("settings","cash",csettings||{});
+  put("settings","inv",(({fh,td,...rest})=>rest)(invset||{}));
+  return m;
+}
+function syApply(tbl,id,body){
+  if(tbl==="debtors"||tbl==="accounts"||tbl==="cashtx"||tbl==="holdings"){
+    const arr=tbl==="debtors"?debtors:tbl==="accounts"?accounts:tbl==="cashtx"?cashtx:holdings;
+    const i=arr.findIndex(x=>x.id===id);
+    if(body==null){if(i>=0)arr.splice(i,1)}else if(i<0)arr.push(body);else arr[i]=body;
+    if(tbl==="debtors")lsSave();else if(tbl==="accounts")accSaveLocal();else if(tbl==="cashtx")cSaveLocal();else hSaveLocal();
+    return;
+  }
+  if(tbl==="cashcat"){if(body==null)delete cashcats[id];else cashcats[id]=body;cSaveLocal();return}
+  if(tbl==="settings"&&id==="cash"){if(body&&typeof body==="object"){Object.assign(csettings,body);cPut("set","cash",csettings).catch(()=>{})}return}
+  if(tbl==="settings"&&id==="inv"){if(body&&typeof body==="object")invPut(body).catch(()=>{});return}
+}
+let syBusy=false,syAutoT=null,syTimer=null;
+const syStat={up:0,down:0,at:0,err:null};
+function syStatRender(){
+  const el=document.querySelector("#sy_stat");if(!el)return;
+  if(!sbOn()){el.textContent="ยังไม่ได้เชื่อมต่อ — ข้อมูลเก็บในเครื่องนี้เท่านั้น";el.className="hint";return}
+  el.textContent=syStat.err?("⚠ "+syStat.err):("✓ ซิงก์อัตโนมัติทุก "+SYNCSEC+" วิ"+(syStat.at?" · "+new Date(syStat.at).toLocaleTimeString("th-TH"):"")+" · ส่ง "+syStat.up+" / รับ "+syStat.down+" รายการ");
+  el.className="hint"+(syStat.err?" warn":"");
+}
+async function syPushAll(){
+  const m=syRows(),ups=[],dels=[];
+  m.forEach((r,k)=>{const h=syHash(JSON.stringify(r.body));if(sbMirror[k]!==h)ups.push({tbl:r.tbl,id:r.id,body:r.body,_h:h})});
+  Object.keys(sbMirror).forEach(k=>{if(!m.has(k)){const s=k.split("|");dels.push({tbl:s[0],id:s.slice(1).join("|"),body:null})}});
+  if(!ups.length&&!dels.length)return 0;
+  const H=await sbH();
+  const rows=[...ups.map(u=>({uid:sbCfg.uid,tbl:u.tbl,id:u.id,body:u.body})),...dels.map(d=>({uid:sbCfg.uid,tbl:d.tbl,id:d.id,body:null}))];
+  for(let i=0;i<rows.length;i+=6){
+    const chunk=rows.slice(i,i+6);
+    const r=await fetch(sbBase()+"/rest/v1/"+SYNRECS+"?on_conflict=uid,tbl,id",{method:"POST",headers:{...H,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(chunk)});
+    if(!r.ok)throw new Error(syErr(await r.text(),r.status));
+  }
+  ups.forEach(u=>{sbMirror[u.tbl+"|"+u.id]=u._h});
+  dels.forEach(d=>{delete sbMirror[d.tbl+"|"+d.id]});
+  sbMirrorSave();syStat.up+=rows.length;
+  return rows.length;
+}
+async function syPullAll(){
+  const H=await sbH();
+  let cur=sbCfg.cursor&&sbCfg.cursor.u?sbCfg.cursor:null,total=0,guard=0;
+  while(guard++<20){
+    let q=sbBase()+"/rest/v1/"+SYNRECS+"?select=tbl,id,body,updated_at&order=updated_at.asc,id.asc&limit=200";
+    if(cur){
+      const u=encodeURIComponent('"'+cur.u+'"'),i=encodeURIComponent('"'+cur.id+'"');
+      q+="&or=(updated_at.gt."+u+",and(updated_at.eq."+u+",id.gt."+i+"))";
+    }
+    const r=await fetch(q,{headers:{...H,cache:"no-store"}});
+    if(!r.ok)throw new Error(syErr(await r.text(),r.status));
+    const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length)break;
+    rows.forEach(x=>{syApply(x.tbl,x.id,x.body);sbMirror[x.tbl+"|"+x.id]=syHash(JSON.stringify(x.body));cur={u:x.updated_at,id:x.id}});
+    total+=rows.length;
+    if(rows.length<200)break;
+  }
+  if(total){sbCfg.cursor=cur;sbSave();sbMirrorSave();syStat.down+=total}
+  return total;
+}
+async function syCycle(verbose){
+  if(!sbOn()){if(verbose)toast("ยังไม่ได้เชื่อมต่อฐานข้อมูล");return}
+  if(syBusy)return;
+  syBusy=true;
   try{
-    if(!syncSet.gist)await ghFind();
-    await ghPush(JSON.stringify(snapObj()));
-    if(!quiet)toast("ส่งข้อมูลขึ้นคลาวด์แล้ว");
-    render();
-  }catch(e){if(!quiet)toast("ซิงก์ไม่สำเร็จ: "+e.message)}
+    const got=await syPullAll();
+    await syPushAll();
+    syStat.at=Date.now();syStat.err=null;
+    if(got)render();
+    if(verbose)toast(got?("รับ "+got+" รายการจากคลาวด์"):"ซิงก์แล้ว — ข้อมูลตรงกัน");
+  }catch(e){syStat.err=e.message}
+  finally{syBusy=false;syStatRender()}
 }
-const syCount=()=>({d:debtors.length,a:accounts.length,c:cashtx.length,h:holdings.length});
-async function syPull(){
-  if(!syTokRead()){toast("ใส่โทเคน GitHub ก่อน");return}
-  let o;
+async function syConnect(){
+  sbRead();
   try{
-    if(!syncSet.gist)await ghFind();
-    if(!syncSet.gist){toast("ไม่พบข้อมูลบนคลาวด์ — ที่เครื่องที่มีข้อมูล กด “ส่งขึ้นคลาวด์” ก่อน");return}
-    o=await ghPull();
-  }catch(e){toast("ซิงก์ไม่สำเร็จ: "+e.message);return}
-  if(!o||o.app!=="สมุดลูกหนี้"){toast("ยังไม่มีข้อมูลบนคลาวด์ — ที่เครื่องที่มีข้อมูล กด “ส่งขึ้นคลาวด์” ก่อน");return}
-  const when=String(o.exportedAt||"").slice(0,16).replace("T"," ");
-  const rc=[(o.debtors||[]).length,(o.cashtx||[]).length,(o.holdings||[]).length];
-  if(!confirm("ดึงข้อมูลจากคลาวด์ ("+when+")\nลูกหนี้ "+rc[0]+" • รายรับรายจ่าย "+rc[1]+" • หุ้น "+rc[2]+"\nข้อมูลที่ id ตรงกันจะถูกเขียนทับ รายการที่มีเฉพาะในเครื่องนี้จะยังอยู่"))return;
-  await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();
-  const n=syCount();
-  toast("ดึงแล้ว: ลูกหนี้ "+n.d+" • รายรับรายจ่าย "+n.c+" • หุ้น "+n.h);
+    if(!sbCfg.refresh)await sbLogin("login");
+    else await sbRefresh();
+  }catch(e){toast(e.message);syStat.err=e.message;syStatRender();return}
+  sbCfg.cursor="";sbMirror={};sbMirrorSave();sbSave();
+  syStart();
+  toast("เชื่อมต่อแล้ว — กำลังซิงก์ข้อมูล…");
+  await syCycle(true);
+  render();
 }
-let syAutoT=null,syBusy=false;
+async function sySignup(){
+  sbRead();
+  try{await sbLogin("signup")}catch(e){
+    if(/มีบัญชีแล้ว/.test(e.message)){toast("มีบัญชีอยู่แล้ว — กด “เชื่อมต่อ”");return}
+    toast(e.message);return;
+  }
+  sbCfg.cursor="";sbMirror={};sbMirrorSave();sbSave();
+  syStart();await syCycle(true);render();
+}
+function sySignOut(){
+  clearInterval(syTimer);syTimer=null;
+  sbCfg={};sbMirror={};sbMirrorSave();sbSave();
+  syStat.up=0;syStat.down=0;syStat.at=0;syStat.err=null;
+  syStatRender();render();toast("ยกเลิกการเชื่อมต่อแล้ว (ข้อมูลในเครื่องยังอยู่)");
+}
 function syMaybeAuto(){
-  if(!syOn()||syncSet.auto===false)return;
+  if(!sbOn()||syBusy)return;
   clearTimeout(syAutoT);
-  syAutoT=setTimeout(async()=>{
-    if(syBusy)return;
-    const txt=JSON.stringify(snapObj());
-    if(syncSet.lastHash===syHash(txt))return;
-    syBusy=true;try{await ghPush(txt)}catch(e){}finally{syBusy=false}
-  },15000);
+  syAutoT=setTimeout(()=>syCycle(false),1200);
 }
-async function syBootCheck(){
-  if(!(syncSet.tok||"").trim())return;
-  try{
-    if(!syncSet.gist&&!await ghFind())return;
-    const o=await ghPull();
-    if(!o||!o.exportedAt)return;
-    if(syncSet.lastPull&&o.exportedAt<=syncSet.lastPull)return;
-    const when=String(o.exportedAt).slice(0,16).replace("T"," ");
-    if(confirm("พบข้อมูลที่อัปเดตจากเครื่องอื่น ("+when+")\nดึงมารวมกับข้อมูลในเครื่องนี้?")){await applySnap(o);syncSet.lastPull=o.exportedAt;sySave();toast("ซิงก์ข้อมูลล่าสุดแล้ว")}
-  }catch(e){}
+function syStart(){
+  clearInterval(syTimer);
+  syStatRender();
+  if(!sbOn())return;
+  setTimeout(()=>syCycle(false),600);
+  syTimer=setInterval(()=>syCycle(false),SYNCSEC*1000);
 }
 async function backupAll(){
   const o=snapObj();
@@ -1775,7 +1851,7 @@ async function cDel(kind,id){
 }
 function safeRender(){
   const ae=document.activeElement;
-  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx,#i_fh,#i_td,#sy_tok"))return;
+  if(ae&&ae.matches&&ae.matches("[data-aid],#na_name,#na_amt,#na_note,#i_fx,#i_fh,#i_td,#sy_url,#sy_key,#sy_email,#sy_pass"))return;
   render();
 }
 
@@ -2287,8 +2363,7 @@ function renderChrome(){
 /* ---------- events ---------- */
 document.addEventListener("change",async e=>{
   const t=e.target;
-  if(t.id==="sy_auto"){syncSet.auto=t.checked;sySave();toast(t.checked?"เปิดส่งข้อมูลอัตโนมัติ":"ปิดส่งข้อมูลอัตโนมัติ")}
-  else if(t.id==="i_auto"){await invPut({auto:t.checked});if(t.checked){iFails=0;iRefresh(true)}}
+  if(t.id==="i_auto"){await invPut({auto:t.checked});if(t.checked){iFails=0;iRefresh(true)}}
   else if(t.id==="i_fh"||t.id==="i_td"){await invPut({[t.id==="i_fh"?"fh":"td"]:t.value.trim()});iFails=0;render();if(t.value.trim()){toast("บันทึกคีย์แล้ว กำลังดึงราคา");iRefresh(true)}else toast("ลบคีย์แล้ว")}
   else if(t.id==="i_fx"){const v=+t.value;if(v>0){await invPut({fx:v});render()}}
   else if(t.id==="rs_file"&&t.files&&t.files[0]){const f=t.files[0];t.value="";restoreAll(f)}
@@ -2350,9 +2425,10 @@ document.addEventListener("click",async e=>{
     case"csvCash":csvCash();break;
     case"csvInv":csvInv();break;
     case"backupAll":backupAll();break;
-    case"sy-save":{const v=(($("#sy_tok")||{}).value||"").trim();syncSet.tok=v;if(!v)syncSet.gist="";sySave();render();toast(v?"บันทึกโทเคนแล้ว — กด “ส่งขึ้นคลาวด์” หรือ “ดึงจากคลาวด์”":"ลบโทเคนแล้ว");break}
-    case"sy-push":syPush();break;
-    case"sy-pull":syPull();break;
+    case"sy-connect":syConnect();break;
+    case"sy-signup":sySignup();break;
+    case"sy-out":sySignOut();break;
+    case"sy-now":syCycle(true);break;
   }
 });
 document.addEventListener("keydown",e=>{
